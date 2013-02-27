@@ -12,37 +12,43 @@ import ConfigParser
 ##################################################################################
 def main():
     (Files,Coord_Keys,Var_Keys,output,Binary_Mult,Binary_Type,Paths,outPrefix,verbose) = process_command_line()
+
+    mask = read_netcdf(Paths['maskPath'],vars = ['mask'])['mask']
+    yi,xi = np.nonzero(mask)
+    print 'found', len(yi), 'points in mask file'
+        
     for i,file in enumerate(Files):
         if i == 0:
             xlist = []
             ylist = []
             pointlist = []
             Append = False
+            print Paths['inPath']+file
             d = read_netcdf(Paths['inPath']+file,verbose=True)
             xs = d['xc']
             ys = d['yc']
-            posinds = np.nonzero(xs]>180)
-                xs[posinds] -= 360
-                print 'adjusted xs lon minimum'
-            for y in xrange(xs.shape[0]):
-                for x in xrange(xs.shape[1]):
-                    flag = 0
-                    for key in Var_Keys:
-                        if d[key][:,y,x].all() is np.ma.masked:
-                            flag = 1
-                    if flag == 0:
-                        point = (ys[y,x],xs[y,x])
-                        xlist.append(x)
-                        ylist.append(y)
-                        pointlist.append(point)
-                        data = np.empty((d[Var_Keys[0]].shape[0],len(Var_Keys)))
-                        for j,key in enumerate(Var_Keys):
-                            data[:,j] = d[key][:,y,x]
-                            
-                        if output['Binary']:
-                            write_binary(data*Binary_Mult,point,Binary_Type,outPrefix,Paths,Append)
-                        if output['ASCII']:
-                            write_ASCII(data,point,outPrefix,Paths,Append)
+            posinds = np.nonzero(xs>180)
+            xs[posinds] -= 360
+            print 'adjusted xs lon minimum'
+            for j in xrange(len(yi)):
+                y,x = yi[j],xi[j]
+                flag = 0
+                for key in Var_Keys:
+                    if (d[key][:,y,x].all() is np.ma.masked or mask[y,x]==0):
+                        flag = 1
+                if flag == 0:
+                    point = (ys[y,x],xs[y,x])
+                    xlist.append(x)
+                    ylist.append(y)
+                    pointlist.append(point)
+                    data = np.empty((d[Var_Keys[0]].shape[0],len(Var_Keys)))
+                    for j,key in enumerate(Var_Keys):
+                        data[:,j] = d[key][:,y,x]
+                        
+                    if output['Binary']:
+                        write_binary(data*Binary_Mult,point,Binary_Type,outPrefix,Paths,Append)
+                    if output['ASCII']:
+                        write_ASCII(data,point,outPrefix,Paths,Append)
         else:
             Append = True
             d = read_netcdf(Paths['inPath']+file,vars = Var_Keys, verbose=True)
@@ -96,7 +102,7 @@ def process_config(configFile):
     WC_End = config.getint('Basics','WC_End')
     output = {'Binary':config.getboolean('Basics','Binary'),
               'ASCII':config.getboolean('Basics','ASCII')}
-    Paths = {'inPath':config.get('Paths','inPath')}
+    Paths = {'inPath':config.get('Paths','inPath'),'maskPath':config.get('Paths','Mask')}
     File_str = config.get('Basics','File')
 
     if output['ASCII']:
@@ -135,16 +141,16 @@ def read_netcdf(ncFile,vars = [],coords = False, verbose = False):
     d={}
     if coords:
         if isinstance(vars,str):
-            d[vars] = f.variables[vars][coords]
+            d[vars] = np.squeeze(f.variables[vars][coords])
         else:
             for var in vars:
-                d[var] = f.variables[var][coords]
+                d[var] = np.squeeze(f.variables[var][coords])
     else:
         if isinstance(vars,str):
-            d[vars] = f.variables[vars][:]
+            d[vars] = np.squeeze(f.variables[vars][:])
         else:
             for var in vars:
-                d[var] = f.variables[var][:]
+                d[var] = np.squeeze(f.variables[var][:])
     f.close()
     return d
 
@@ -153,13 +159,12 @@ def write_ASCII(array,point,outPrefix,Paths,Append,verbose = False):
     """
     Write an array to standard VIC ASCII output.
     """
-    outFile = Paths['ASCIIoutPath']+outPrefix+('%.3f' % point[0])+'_'+('%.3f' % point[1])
+    outFile = Paths['ASCIIoutPath']+outPrefix+('%1.3f' % point[0])+'_'+('%1.3f' % point[1])
     if Append:
         f = open(outFile, 'a')
     else:
         f = open(outFile, 'w')
     
-    dt = np.dtype([('precip',np.uint16),('tmax',np.int16),('tmin',np.int16),('wind',np.int16)])
     if verbose: print 'Writing ASCII Data to',outFile
     np.savetxt(f,array,fmt='%1.4f')
     f.close()

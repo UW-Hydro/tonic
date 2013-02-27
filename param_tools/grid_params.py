@@ -18,7 +18,7 @@ def main():
     Parameter column locations and units/descriptions are from params.py.
     Output is to a netcdf containing all the parameterfiles (default name is params.nc)
     """
-    gridFile,soilFile,snowFile,vegFile,outFile = process_command_line()
+    gridFile,soilFile,snowFile,vegFile,veglFile,outFile = process_command_line()
     grids = make_grid(gridFile, soilFile,snowFile = snowFile,vegFile = vegFile,veglFile = veglFile,ncFile = outFile)
 
     print 'completed grid_parms.main(), output file was:', outFile

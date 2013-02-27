@@ -183,8 +183,58 @@ class cols:
                        'lib_wind_atten':[55],
                        'lib_trunk_ratio':[56]}
                         #'comment': [57]}
-        
 
+class format:
+    def __init__(self,Nlayers=3,Snow_bands = 5):
+        self.soilParam = {'run_cell':'%1i',
+                           'gridcel':'%1i',
+                           'lat':'%1.3f',
+                           'lon':'%1.3f',
+                           'infilt':'%1.6f',
+                           'Ds':'%1.6f',
+                           'Dsmax':'%1.6f',
+                           'Ws':'%1.6f',
+                           'c':'%1.6f',
+                           'expt':'%1.6f',
+                           'Ksat':'%1.6f',
+                           'phi_s':'%1.6f',
+                           'init_moist':'%1.6f',
+                           'elev':'%1.6f',
+                           'depth':'%1.6f',
+                           'avg_T':'%1.6f',
+                           'dp':'%1.6f',
+                           'bubble':'%1.6f',
+                           'quartz':'%1.6f',
+                           'bulk_density':'%1.6f',
+                           'soil_density':'%1.6f',
+                           'off_gmt':'%1.6f',
+                           'Wcr_FRACT':'%1.6f',
+                           'Wpwp_FRACT':'%1.6f',
+                           'rough':'%1.6f',
+                           'snow_rough':'%1.6f',
+                           'annual_prec':'%1.6f',
+                           'resid_moist':'%1.6f',
+                           'fs_active':'%1i'}
+
+        self.snowParam = {'cellnum':['%1i'],
+                          'AreaFract':['%1.6f']*Snow_bands,
+                          'elevation':['%1.6f']*Snow_bands,
+                          'Pfactor':['%1.6f']*Snow_bands}
+        
+        self.vegLib = {'Veg_class':['%1i'],
+                       'lib_overstory':['%1.6f'],
+                       'lib_rarc':['%1.6f'],
+                       'lib_rmin':['%1.6f'],
+                       'lib_LAI':['%1.6f']*12,
+                       'lib_albedo':['%1.6f']*12,
+                       'lib_rough':['%1.6f']*12,
+                       'lib_displacement':['%1.6f']*12,
+                       'lib_wind_h':['%1.6f'],
+                       'lib_RGL':['%1.6f'],
+                       'lib_rad_atten':['%1.6f'],
+                       'lib_wind_atten':['%1.6f'],
+                       'lib_trunk_ratio':['%1.6f']}
+                        #'comment': [57]}
 
 class description:
     def __init__(self,ORGANIC_FRACT = False,SPATIAL_FROST = False,SPATIAL_SNOW = False,

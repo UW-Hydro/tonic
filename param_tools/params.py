@@ -40,7 +40,7 @@ def snow(snowFile,soilDict,Snow_bands = 5):
 
     return snowDict
 
-def veg(vegFile,soilDict,maxRoots = 4,vegClasses = 11,
+def veg(vegFile,soilDict,maxRoots = 3,vegClasses = 11,
         cells = False,BLOWING_SNOW = False, LAIndex = False):
     """
     Read the vegetation file from vegFile.  Assumes max length for rootzones and vegclasses
@@ -75,6 +75,7 @@ def veg(vegFile,soilDict,maxRoots = 4,vegClasses = 11,
         row += 1
         
         while row < numrows:
+            lines[row] = lines[row].strip()
             line = lines[row].strip('\n').split(' ')
             temp = np.array(line).astype(float)
             vind = int(temp[0])-1
@@ -90,6 +91,7 @@ def veg(vegFile,soilDict,maxRoots = 4,vegClasses = 11,
             root_fract[cell,vind,:rind] = temp[3::2]
             row += 1
             if LAIndex:
+                lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
                 LAI[cell,vind,:] = np.array(line).astype(float)
                 row += 1
@@ -107,14 +109,19 @@ def veg(vegFile,soilDict,maxRoots = 4,vegClasses = 11,
     if LAIndex:
         vegDict['LAI'] = LAI[:cell,:,:]
 
-    target = vegDict['gridcell'].argsort()
-    indexes = target[np.searchsorted(soilDict['gridcel'][target], vegDict['gridcell'])]
+    #target = vegDict['gridcell'].argsort()
+    #indexes = target[np.searchsorted(soilDict['gridcel'][target], vegDict['gridcell'])]
+
+   # vegDict['Nveg'] = vegDict['Nveg'][inds]
+    inds = []
+    for sn in soilDict['gridcel']:
+        inds.append(np.nonzero(vegDict['gridcell']==sn))
 
     for var in vegDict:
-        vegDict[var] = np.squeeze(vegDict[var][indexes])
+        vegDict[var] = np.squeeze(vegDict[var][inds])
     return vegDict
 
-def veg_class(inFile,maxcols = 57,skiprows = 2):
+def veg_class(inFile,maxcols = 57,skiprows = 1):
     """
     Load the entire vegetation library file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.  

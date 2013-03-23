@@ -1,0 +1,9 @@
+#!/usr/local/bin/python
+import grid_params.py
+
+gridFile = ../../../simon/columbia_elev.nc
+soilFile = /net/juniper/raid/homefc/maca.vic/hb2860_parameter_files/soil/soil.columbia
+ncFile = test_1
+
+make_grid(grid)
+

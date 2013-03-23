@@ -18,7 +18,7 @@ def main():
     Parameter column locations and units/descriptions are from params.py.
     Output is to a netcdf containing all the parameterfiles (default name is params.nc)
     """
-    gridFile,soilFile,snowFile,vegFile,outFile = process_command_line()
+    gridFile,soilFile,snowFile,vegFile,veglFile,outFile = process_command_line()
     grids = make_grid(gridFile, soilFile,snowFile = snowFile,vegFile = vegFile,veglFile = veglFile,ncFile = outFile)
 
     print 'completed grid_parms.main(), output file was:', outFile
@@ -46,7 +46,7 @@ def process_command_line():
 
     return gridFile,soilFile,snowFile,vegFile,veglFile,outFile
 
-def make_grid(gridFile, soilFile,snowFile = False,vegFile = False,veglFile = False,ncFile = 'params.nc'):
+def make_grid(gridFile, soilFile,snowFile,vegFile,veglFile,ncFile = 'params.nc'):
     """
     Make grid uses routines from params.py to read standard vic format parameter files.
     After the parameter files are read, the files are placed onto the target grid using
@@ -55,17 +55,22 @@ def make_grid(gridFile, soilFile,snowFile = False,vegFile = False,veglFile = Fal
     be written with the parameter data, if ncFile = False, the dictionary of grids is returned.
     """
     targetGrid,targetAttrs = read_netcdf(gridFile)
-
     soilDict = params.soil(soilFile)
 
     if snowFile:
         snowDict = params.snow(snowFile,soilDict)
+    else:
+        snowDict = False
 
     if vegFile:
         vegDict = params.veg(vegFile,soilDict,LAIndex = True)
+    else:
+        vegDict = False
 
     if veglFile:
         veglDict = params.veg_class(veglFile)
+    else:
+        veglDict = False
 
     try:
         mask = np.ma.masked_values(targetGrid['mask'],0).mask
@@ -81,27 +86,29 @@ def make_grid(gridFile, soilFile,snowFile = False,vegFile = False,veglFile = Fal
     
     return gridDict
 
-def grid_params(soilDict,targetGrid,snowDict = False, vegDict=False, fill_value = -9999,mask = False):
+def grid_params(soilDict,targetGrid,snowDict, vegDict, fill_value = -9999,mask = False):
     """
     Reads the coordinate information from the soilDict and targetGrid and maps all input dictionaries
     to the target grid.  Returns a gridDict with the mapped input dictionary data.  
+    HF: changed the yc and xc for latitude and longitude
     """
 
-    if (soilDict['lon'].min()<0 and targetGrid['xc'].min()>=0):
-        posinds = np.nonzero(targetGrid['xc']>180)
-        targetGrid['xc'][posinds] -= 360
-        print 'adjusted xc lon minimum'
+    if (soilDict['lon'].min()<0 and targetGrid['longitude'].min()>=0):
+        posinds = np.nonzero(targetGrid['longitude']>180)
+        targetGrid['longitude'][posinds] -= 360
+        print 'adjusted longitude longitude minimum'
     try:
-        combined = np.dstack(([targetGrid['yc'].ravel(),targetGrid['xc'].ravel()]))[0]
+        combined = np.dstack(([targetGrid['latitude'].ravel(),targetGrid['longitude'].ravel()]))[0]
     except:
-        targetGrid['xc'],targetGrid['yc'] = np.meshgrid(targetGrid['lon'],targetGrid['lat'])
-        combined = np.dstack(([yc.ravel(),xc.ravel()]))[0]
+        xc,yc = np.meshgrid(targetGrid['longitude'],targetGrid['latitude'])
+        combined = np.dstack((yc.ravel(), xc.ravel()))[0]
     points = list(np.vstack((soilDict['lat'],soilDict['lon'])).transpose())
-   
+    
+    
+
     mytree = cKDTree(combined)
     dist, indexes = mytree.query(points,k=1)
-
-    inds = np.unravel_index(indexes,(targetGrid['xc'].shape[0],targetGrid['xc'].shape[1]))
+    inds = np.unravel_index(indexes,(xc.shape[0],xc.shape[1]))
 
     inDicts = {'soilDict':soilDict}
     outDicts = {}
@@ -110,7 +117,6 @@ def grid_params(soilDict,targetGrid,snowDict = False, vegDict=False, fill_value 
     if vegDict:
         inDicts['vegDict'] = vegDict
     for i,name in enumerate(inDicts):
-
         if name == 'soilDict':
             outDict = targetGrid
         else:
@@ -119,9 +125,8 @@ def grid_params(soilDict,targetGrid,snowDict = False, vegDict=False, fill_value 
         Dict = inDicts[name]
         for var in Dict:
             if Dict[var].ndim == 1:
-                outDict[var] = np.ma.zeros((targetGrid['xc'].shape[0],targetGrid['xc'].shape[1]))+fill_value
-                outDict[var][inds[0],inds[1]] = Dict[var][indexes]
-                
+                outDict[var] = np.ma.zeros((xc.shape[0],xc.shape[1]))+fill_value
+                outDict[var][inds[0],inds[1]] = Dict[var]#[indexes]
                 if isinstance(mask,np.ndarray):
                     outDict[var] = np.ma.masked_array(outDict[var],mask = mask)
                 else:
@@ -130,9 +135,9 @@ def grid_params(soilDict,targetGrid,snowDict = False, vegDict=False, fill_value 
        
             elif Dict[var].ndim == 2:
                 steps = Dict[var].shape[1]
-                outDict[var] = np.ma.zeros((steps,targetGrid['xc'].shape[0],targetGrid['xc'].shape[1]))+fill_value
+                outDict[var] = np.ma.zeros((steps,xc.shape[0],xc.shape[1]))+fill_value
                 for i in xrange(steps):
-                    outDict[var][i,inds[0],inds[1]] = Dict[var][indexes,i]
+                    outDict[var][i,inds[0],inds[1]] = Dict[var][:,i]#i put colon instead of indexes
                     
                     if isinstance(mask,np.ndarray):
                         outDict[var][i,:,:] = np.ma.masked_array(outDict[var][i,:,:],mask = mask)
@@ -142,10 +147,10 @@ def grid_params(soilDict,targetGrid,snowDict = False, vegDict=False, fill_value 
             elif Dict[var].ndim == 3:
                 y = Dict[var].shape[1]
                 x = Dict[var].shape[2]
-                outDict[var] = np.ma.zeros((y,x,targetGrid['xc'].shape[0],targetGrid['xc'].shape[1]))+fill_value
+                outDict[var] = np.ma.zeros((y,x,xc.shape[0],xc.shape[1]))+fill_value
                 for yy in xrange(y):
                     for xx in xrange(x):
-                        outDict[var][yy,xx,inds[0],inds[1]] = Dict[var][indexes,yy,xx]
+                        outDict[var][yy,xx,inds[0],inds[1]] = Dict[var][:,yy,xx]#i put colon instead of indexes
                     
                         if isinstance(mask,np.ndarray):
                             outDict[var][yy,xx,:,:] = np.ma.masked_array(outDict[var][yy,xx,:,:],mask = mask)
@@ -269,7 +274,7 @@ def write_netcdf_main(file):
     # write data to variables initialized above
     rootgrp.close()
 
-def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGrid = False,veglDict = False):
+def write_netcdf_vars(file,targetAttrs,soilGrid, snowGrid, vegGrid,veglDict):
     """
     Write the gridded parameters to a netcdf4 file
     Will only write paramters that it is given
@@ -286,10 +291,10 @@ def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGr
         y = rootgrp.createDimension('lat',len(soilGrid['lat']))
         xcord,ycord = 'lon','lat'
     else:
-        x = rootgrp.createDimension('x',soilGrid['xc'].shape[1])
-        y = rootgrp.createDimension('y',soilGrid['xc'].shape[0])
+        x = rootgrp.createDimension('longitude',soilGrid['longitude'].shape[0])
+        y = rootgrp.createDimension('latitude',soilGrid['latitude'].shape[0])
         nv4 = rootgrp.createDimension('nv4',4)
-        xcord,ycord = 'xc','yc'
+        xcord,ycord = 'longitude','latitude'
     layers = rootgrp.createDimension('Nlayer',None)
 
     for var in soilGrid:
@@ -300,11 +305,16 @@ def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGr
             fv = None
 
         if soilGrid[var].ndim == 1:
-            v = rootgrp.createVariable(var,'f8',('y','x',))
-            v[:] = soilGrid[var]
+            if var == 'longitude':
+                coord = 'longitude'
+            elif var == 'latitude':
+                coord = 'latitude'
+            elif var != 'time':
+                v = rootgrp.createVariable(var,'f8',(coord,))
+                v[:] = soilGrid[var]
 
         elif soilGrid[var].ndim == 2:
-            v = rootgrp.createVariable(var,'f8',(ycord,xcord,),fill_value=fv)
+            v = rootgrp.createVariable(var,'f8',('latitude','longitude',),fill_value=fv)
             v[:,:] = soilGrid[var]
 
         elif soilGrid[var].ndim == 3:
@@ -353,7 +363,7 @@ def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGr
 
     if vegGrid:
         veg_type = rootgrp.createDimension('Veg_class',None)
-        root_zone = rootgrp.createDimension('Root_zone',None)
+        root_zone = rootgrp.createDimension('Root_zone',3)
         month = rootgrp.createDimension('Month',12)
 
         for var in vegGrid:
@@ -371,7 +381,7 @@ def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGr
                 v = rootgrp.createVariable(var,'f8',('Veg_class','Month',ycord,xcord,),fill_value=fv)
                 v[:,:,:,:] = vegGrid[var]
             elif vegGrid[var].ndim == 4:
-                v = rootgrp.createVariable(var,'f8',('Veg_class','Root_zone','y','x',),fill_value=fv)
+                v = rootgrp.createVariable(var,'f8',('Veg_class','Root_zone',ycord,xcord,),fill_value=fv)
                 v[:,:,:,:] = vegGrid[var]
             else:
                 raise IOError('only able to handle dimensions <=4')
@@ -396,6 +406,15 @@ def write_netcdf_vars(file,targetAttrs,soilGrid = False, snowGrid = False, vegGr
 
     rootgrp.close()
     return
+
+    ##################################################################################
+    ## Find Indicies
+    ## Given an input lat or lon, the function returns the nearest index location
+    ##################################################################################
+    def find_nearest(array,value):
+        """ Find the index location in (array) with value nearest to (value)"""
+        idx = (np.abs(array-value)).argmin()
+        return idx
 
 if __name__ == "__main__":
     main()

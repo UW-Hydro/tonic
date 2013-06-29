@@ -24,7 +24,7 @@ def main():
             pointlist = []
             Append = False
             print Paths['inPath']+file
-            d = read_netcdf(Paths['inPath']+file,verbose=True)
+            d = read_netcdf(Paths['inPath']+file,verbose=verbose)
             xs = d['xc']
             ys = d['yc']
             posinds = np.nonzero(xs>180)
@@ -51,7 +51,9 @@ def main():
                         write_ASCII(data,point,outPrefix,Paths,Append)
         else:
             Append = True
-            d = read_netcdf(Paths['inPath']+file,vars = Var_Keys, verbose=True)
+            d = []
+            data = []
+            d = read_netcdf(Paths['inPath']+file, verbose=verbose)
             if verbose:
                 print 'on file',str(i), 'point list is length: ',len(xlist)
             

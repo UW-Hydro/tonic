@@ -1,0 +1,9 @@
+#directories to ignore
+bin/
+data/
+modelforcings/
+modeloutput/
+plots/
+#file types to ignore
+*junk*
+*tmp*

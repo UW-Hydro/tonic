@@ -7,15 +7,17 @@ import params
 import grid_params
 import argparse
 
+#check format of output ascii files (precision mainly)
+
 # snowOut = 'RASM_snow_param'
-# vegOut = 'RASM_veg_param'
+vegOut = 'RASM_veg_param'
 paramNC = '/usr1/jhamman/RASM/VIC/soil_param/params_new.nc'
 
 # # Full Grid
 UL = False
 LR = False
-soilOut = 'tocluster/RASM_soil_param'
-outfiles = 400
+soilOut = 'tocluster/soil_param_wr50a.100924'
+outfiles = 25996
 
 # Greenland 
 # UL = (108,170)
@@ -43,7 +45,7 @@ outfiles = 400
 
 def main():
 
-    subset(paramNC,UL = UL,LR=LR,outfiles = outfiles,soilOut = soilOut,snowOut = False,vegOut = False)
+    subset(paramNC,UL = UL,LR=LR,outfiles = outfiles,soilOut = soilOut,snowOut = False,vegOut = vegOut)
     
 # def full(paramNC,outfiles = 1,soilOut = False,snowOut = False,vegOut = False):
 
@@ -70,6 +72,9 @@ def subset(paramNC,UL=False,LR=False,outfiles = 1,soilOut = False,snowOut = Fals
 
     cells,yinds,xinds = find_gridcells(data['mask'])
 
+    veg(data,xinds,yinds,vegOut,rootzones=2,GLOBAL_LAI=True)
+
+
     if (UL and LR):
         inds = (yinds<UL[0]) & (yinds>LR[0]) & (xinds<LR[1]) & (xinds>UL[1])
         yinds = yinds[inds]
@@ -83,13 +88,12 @@ def subset(paramNC,UL=False,LR=False,outfiles = 1,soilOut = False,snowOut = Fals
         if end>cells:
             end = cells
         if outfiles>1:
-            outFile = soilOut+'_'+str(i)
+            outFile = soilOut+'_'+str(i).zfill(len(str(outfiles)))
         else:
             outFile = soilOut
         soil(data,xinds[start:end],yinds[start:end],outFile)
         print 'finished', outFile
-
-    
+    return
     
 def soil(data,xinds,yinds,soilOut):
 
@@ -107,42 +111,45 @@ def soil(data,xinds,yinds,soilOut):
             dtypes[col] = f.soilParam[var]
     
     np.savetxt(soilOut,soilParams,fmt=dtypes)
+    return
 
 #def snow():
 
-def veg(data,xinds,yinds,vegOut,rootzones=3,GLOBAL_LAI=True):
-    file = open(VegOut,'w')
+def veg(data,xinds,yinds,vegOut,rootzones=2,GLOBAL_LAI=True):
+    file = open(vegOut,'w')
+    count = 0 
     for i in xrange(len(xinds)):
         x,y = xinds[i],yinds[i]
         gridcell = int(data['gridcell'][y,x])
         Nveg = int(data['Nveg'][y,x])
-        Cv = data['Cv'][y,x]
-        veg_class = np.nonzero(Cv)+1
-
-        if not len(veg_class)==Nveg:
-            raise ValueError('number of veg_classes does not match the number of nonzero Cv values')
+        Cv = data['Cv'][:,y,x]
+        veg_class = np.nonzero(Cv)[0]
+        # print gridcell, Nveg, veg_class
         
-        line1 = str(gridcell)+' '+str(Nveg)
+        if not len(veg_class)==Nveg:
+            # raise ValueError('number of veg_classes does not match the number of nonzero Cv values')
+            count += 1
+        
+        line1 = str(gridcell)+' '+str(Nveg)+'\n'
         file.write(line1)
         if Nveg > 0:
-            for j in veg_inds:
+            for j in veg_class:
                 line2 = [str(j+1)]
                 line2.append(str(Cv[j]))
                 for k in xrange(rootzones):
                     line2.append(str(data['root_depth'][j,k,y,x]))
                     line2.append(str(data['root_fract'][j,k,y,x]))
+                line2.append('\n')
                 file.write(' '.join(line2))
                 if GLOBAL_LAI:
                     line3 = []
                     for m in xrange(12):
                         line3.append(str(data['LAI'][j,m,y,x]))
+                    line3.append('\n')
                     file.write(' '.join(line3))
     file.close()
-                    
-            
-                
-
-            
+    print count,'grid cells have unequal veg_classes'
+    return
 
 # def vegLib():
 
@@ -188,8 +195,6 @@ def read_netcdf(ncFile,vars = [],coords = False, verbose = True):
                 a[var] = f.variables[var].__dict__
     f.close()
     return d,a
-
-    
 
 if __name__ == "__main__":
     main()

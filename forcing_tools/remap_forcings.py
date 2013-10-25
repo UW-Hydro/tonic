@@ -7,9 +7,9 @@ import numpy as np
 from cdo import *
 cdo = Cdo()
 
-input_file_path = '/raid/jhamman/raw_forcings/Adam2006/Global/'
+input_file_path = '/raid/jhamman/raw_forcings/Sheffield2006/3hourly/'
 grid = '/raid/jhamman/RASM_masks/domain.lnd.wr50a_ar9v4.100920.nc'
-outpath = '/raid/jhamman/RASM_met_forcings/Adam2006_Global/'
+outpath = '/raid/jhamman/RASM_met_forcings/NETCDF/Sheffield2006/3hourly/'
 
 def standard_remap():
     print 'running standard remap program'
@@ -59,6 +59,6 @@ def global_remap():
                     cdo.remapcon(grid,input = infile,output = outfile)
                     print 'done with', member 
 
-#standard_remap()
-global_remap()
+standard_remap()
+# global_remap()
         

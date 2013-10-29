@@ -40,7 +40,7 @@ NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
 
 # Global declaration of data list
-data_points = []
+data_points = {}
 segments = {}
 
 # -------------------------------------------------------------------- #
@@ -209,8 +209,8 @@ class Segment(object):
         return
 
     def nc_add_data(self, data):
-        print 'adding data to %s' %self.filename
-        for point in data:
+        for filename, point in data.iteritems():
+            print 'adding data to %s from %s' %(self.filename, point.filename)
             for name in self.var_list:
                 self.f.variables[name][:, point.y, point.x]
         return
@@ -482,9 +482,11 @@ def main():
             # read chunk of points
             pool0 = LoggingPool(processes=numofproc)
             for point in chunk:
+                print point
                 pool0.apply_async(read_point,
                                  args=(point, names, usecols),
                                  callback=store_data)
+
             pool0.close()
             pool0.join()
             print 'done reading points for this chunk'
@@ -492,21 +494,21 @@ def main():
             pool2 = LoggingPool(processes=numofproc)
             print 'setup pool2 for writing / appending data'
             for num, segment in segments.iteritems():
+
                 pool2.apply_async(add_data,
-                                 args=(data_points, segment),
-                                 callback=store_segment)
+                                 args=(data_points, segment))
             pool2.close()
             pool2.join()
-            data_points = []
+            data_points = {}
     else:
         for chunk in point_chunks:
             for point in chunk:
                 point.read(names=names, usecols=usecols)
-                data_points.append(point)
+                data_points[point.filename] = point
 
             for num, segment in segments.iteritems():
                 segment.nc_add_data(data_points)
-            data_points = []
+            data_points = {}
         # Close the netcdf files
         for num, segment in segments.iteritems():
             segment.nc_close()
@@ -530,6 +532,10 @@ def setup_segment(num, i0, i1, filename, global_atts,
     return seg
 
 def add_data(data_points, seg):
+    created = multiprocessing.Process()
+    current = multiprocessing.current_process()
+    print 'running:', current.name, current._identity
+    print 'created:', created.name, created._identity
     seg.nc_append()
     seg.nc_add_data(data_points)
     seg.nc_close()
@@ -537,7 +543,6 @@ def add_data(data_points, seg):
 
 # Callback function for setup_segment
 def store_segment(seg):
-    global segments
     segments[seg.num] = seg
 
 # point.read wrapper function to ovoid pickling error
@@ -547,8 +552,7 @@ def read_point(point, names, usecols):
 
 # Callback function for read_point
 def store_data(point):
-    global data_points
-    data_points.append(point)
+    data_points[point.filename] = point
 
 # Generator to chunk points list
 def chunks(l, n):

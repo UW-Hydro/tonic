@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import traceback
 from os import path
 from glob import glob
 from re import findall
@@ -13,6 +13,8 @@ from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
 from multiprocessing.pool import Pool
+import multiprocessing
+multiprocessing.log_to_stderr()
 import sys
 import numpy as np
 import time as tm
@@ -39,6 +41,7 @@ NC_FLOAT = 'f4'
 
 # Global declaration of data list
 data_points = []
+segments = {}
 
 # -------------------------------------------------------------------- #
 # Point object
@@ -54,6 +57,7 @@ class Point(object):
         self.filename = filename
 
     def read(self, names=[], usecols=[]):
+        print 'reading', self.filename
         self.df = read_csv(self.filename,
                            delimiter='\t',
                            header=None,
@@ -99,8 +103,9 @@ class Segment(object):
         self.i0 = i0
         self.i1 = i1
         self.filename = filename
-        self.f = Dataset(self.filename, mode="w", clobber=True, format='NETCDF4_CLASSIC')
         self.fields = {}
+
+        self.nc_write()
 
 
     def nc_globals(self,
@@ -165,6 +170,7 @@ class Segment(object):
             # Add the attributes
             for key, val in ncvar.attributes.iteritems():
                 setattr(self.fields[name], key, val)
+
         return
 
     def nc_fields(self, fields, y_x_dims, precision):
@@ -179,7 +185,6 @@ class Segment(object):
             prec_global = NC_DOUBLE
         else:
             raise ValueError('Unkown value for OPTIONS[precision] field: %s', precision)
-
 
         for name, field in fields.iteritems():
 
@@ -204,10 +209,20 @@ class Segment(object):
         return
 
     def nc_add_data(self, data):
+        print 'adding data to %s' %self.filename
         for point in data:
             for name in self.var_list:
-                print 'adding data for %s, field %s' %(self.filename, name)
-                self.fields[name][:, point.y, point.x] = point.df[name][self.i0:self.i1].values
+                self.f.variables[name][:, point.y, point.x]
+        return
+
+    def nc_write(self):
+        self.f = Dataset(self.filename, mode="w", clobber=True, format='NETCDF4_CLASSIC')
+        print 'Opened in write mode: %s' %self.filename
+        return
+
+    def nc_append(self):
+        self.f = Dataset(self.filename, mode='a')
+        print 'Opened in append mode: %s' %self.filename
         return
 
     def nc_close(self):
@@ -234,6 +249,35 @@ class NcVar(np.ndarray):
         if obj is None: return
 # -------------------------------------------------------------------- #
 
+# Shortcut to multiprocessing's logger
+def error(msg, *args):
+    return multiprocessing.get_logger().error(msg, *args)
+
+class LogExceptions(object):
+    def __init__(self, callable):
+        self.__callable = callable
+        return
+
+    def __call__(self, *args, **kwargs):
+        try:
+            result = self.__callable(*args, **kwargs)
+
+        except Exception as e:
+            # Here we add some debugging help. If multiprocessing's
+            # debugging is on, it will arrange to log the traceback
+            error(traceback.format_exc())
+            # Re-raise the original exception so the Pool worker can
+            # clean up
+            raise
+
+        # It was fine, give a normal answer
+        return result
+    pass
+
+class LoggingPool(Pool):
+    def apply_async(self, func, args=(), kwds={}, callback=None):
+        return Pool.apply_async(self, LogExceptions(func), args, kwds, callback)
+
 
 # -------------------------------------------------------------------- #
 # Top level driver
@@ -243,8 +287,7 @@ def main():
     # Read command Line
     config_file, numofproc = process_command_line()
     # ---------------------------------------------------------------- #
-    if numofproc >1:
-        pool = Pool(processes=numofproc)
+
     # ---------------------------------------------------------------- #
     # Read Configuration files
     config_dict = read_config(config_file)
@@ -356,41 +399,66 @@ def main():
     segment_dates[0] = start_date
     segment_dates[-1] = end_date
 
-    # Setup segments
-    segments = {}
+    target_grid_file = path.split(domain_dict['filename'])[1]
 
-    for num in xrange(len(segment_dates)-1):
-        # Segment time bounds
-        t0 = segment_dates[num]
-        t1 = segment_dates[num+1]
+    if numofproc > 1:
+        pool0 = LoggingPool(processes=numofproc)
 
-        # Get segment inds
-        i0 = bisect_right(vic_datelist, t0)
-        i1 = bisect_left(vic_datelist, t1)
+        for num in xrange(len(segment_dates)-1):
+            # Segment time bounds
+            t0 = segment_dates[num]
+            t1 = segment_dates[num+1]
 
-        # Make segment filename (with path)
-        filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
-        filename = path.join(options['out_directory'], filename, )
+            # Get segment inds
+            i0 = bisect_right(vic_datelist, t0)
+            i1 = bisect_left(vic_datelist, t1)
 
-        # Setup segment and initialize netcdf
-        segments[num] = Segment(num, i0, i1, filename)
-        segments[num].nc_globals(target_grid_file=path.split(domain_dict['filename'])[1],
-                                 **global_atts)
-        segments[num].nc_time(vic_ordtime, options['calendar'])
-        segments[num].nc_domain(domain)
-        segments[num].nc_fields(fields, domain_dict['y_x_dims'], options['precision'])
+            # Make segment filename (with path)
+            filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
+            filename = path.join(options['out_directory'], filename, )
+
+            # Setup segment and initialize netcdf
+            pool0.apply_async(setup_segment,
+                             args=(num, i0, i1, filename, global_atts,
+                                   vic_ordtime, options, domain_dict, fields),
+                             callback=store_segment)
+        pool0.close()
+        pool0.join()
+    else:
+        for num in xrange(len(segment_dates)-1):
+            # Segment time bounds
+            t0 = segment_dates[num]
+            t1 = segment_dates[num+1]
+
+            # Get segment inds
+            i0 = bisect_right(vic_datelist, t0)
+            i1 = bisect_left(vic_datelist, t1)
+
+            # Make segment filename (with path)
+            filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
+            filename = path.join(options['out_directory'], filename, )
+
+            # Setup segment and initialize netcdf
+            segments[num] = Segment(num, i0, i1, filename)
+            segments[num].nc_globals(target_grid_file=target_grid_file,
+                                     **global_atts)
+            segments[num].nc_time(vic_ordtime, options['calendar'])
+            segments[num].nc_domain(domain)
+            segments[num].nc_fields(fields, domain_dict['y_x_dims'], options['precision'])
+
+    for num, segment in segments.iteritems():
         print "\n-------------------------- Segment %s --------------------------" %num
-        print "Filename: %s" %filename
-        print "Start Date: %s" %t0
-        print "End Date: %s" %t1
-        print "Start Index: %s" %i0
-        print "End Index: %s" %i1
+        print "Filename: %s" %segment.filename
+        print "Start Index: %s" %segment.i0
+        print "End Index: %s" %segment.i1
         print "------------------------------------------------------------------"
     # ---------------------------------------------------------------- #
 
     # After profiling, writing seems to be taking about 10 times as long as reading
     # We cant pass around file descriptors so instead, we'll use multiprocessing to
     # read big chunks of files and then write them to each segment.
+    # It also turns out that writing is slow enough that it makes sense to sacrafice
+    # opening and closing the nc files so that we can use the other processors.
 
     # ---------------------------------------------------------------- #
     # Get column numbers and names (will help speed up reading)
@@ -411,15 +479,24 @@ def main():
     global data_points
     if numofproc > 1:
         for chunk in point_chunks:
-            pool = Pool(processes=numofproc)
+            # read chunk of points
+            pool0 = LoggingPool(processes=numofproc)
             for point in chunk:
-                pool.apply_async(read_point,
+                pool0.apply_async(read_point,
                                  args=(point, names, usecols),
                                  callback=store_data)
-            pool.close()
-            pool.join()
+            pool0.close()
+            pool0.join()
+            print 'done reading points for this chunk'
+            # Use a new pool for writing
+            pool2 = LoggingPool(processes=numofproc)
+            print 'setup pool2 for writing / appending data'
             for num, segment in segments.iteritems():
-                segment.nc_add_data(data_points)
+                pool2.apply_async(add_data,
+                                 args=(data_points, segment),
+                                 callback=store_segment)
+            pool2.close()
+            pool2.join()
             data_points = []
     else:
         for chunk in point_chunks:
@@ -430,17 +507,39 @@ def main():
             for num, segment in segments.iteritems():
                 segment.nc_add_data(data_points)
             data_points = []
-    # ---------------------------------------------------------------- #
-
-    # ---------------------------------------------------------------- #
-    # Close the netcdf files
-    for num, segment in segments.iteritems():
-        segment.nc_close()
+        # Close the netcdf files
+        for num, segment in segments.iteritems():
+            segment.nc_close()
     # ---------------------------------------------------------------- #
     return
 
 # -------------------------------------------------------------------- #
 # Helper functions to support multiprocessing
+# wrapper function for seting up netcdf segments
+def setup_segment(num, i0, i1, filename, global_atts,
+                  vic_ordtime, options, domain_dict, fields):
+    domain = read_domain(domain_dict)
+    target_grid_file = path.split(domain_dict['filename'])[1]
+    seg = Segment(num, i0, i1, filename)
+    seg.nc_globals(target_grid_file=target_grid_file,
+                             **global_atts)
+    seg.nc_time(vic_ordtime, options['calendar'])
+    seg.nc_domain(domain)
+    seg.nc_fields(fields, domain_dict['y_x_dims'], options['precision'])
+    seg.nc_close()
+    return seg
+
+def add_data(data_points, seg):
+    seg.nc_append()
+    seg.nc_add_data(data_points)
+    seg.nc_close()
+    return seg
+
+# Callback function for setup_segment
+def store_segment(seg):
+    global segments
+    segments[seg.num] = seg
+
 # point.read wrapper function to ovoid pickling error
 def read_point(point, names, usecols):
     point.read(names=names, usecols=usecols)
@@ -453,8 +552,7 @@ def store_data(point):
 
 # Generator to chunk points list
 def chunks(l, n):
-    """ Yield successive n-sized chunks from l.
-    """
+    """ Yield successive n-sized chunks from l."""
     for i in xrange(0, len(l), n):
         yield l[i:i+n]
 # -------------------------------------------------------------------- #

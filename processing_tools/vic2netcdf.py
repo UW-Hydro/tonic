@@ -198,7 +198,6 @@ class Segment(object):
                                                       prec,
                                                       coords,
                                                       fill_value=fill_val)
-            self.fields[name][:, :] = fill_val
 
             if 'units' in field.keys():
                 self.fields[name].long_name = name
@@ -212,7 +211,7 @@ class Segment(object):
         for filename, point in data.iteritems():
             print 'adding data to %s from %s' %(self.filename, point.filename)
             for name in self.var_list:
-                self.f.variables[name][:, point.y, point.x]
+                self.f.variables[name][:, point.y, point.x] = point.df[name].values[self.i0:self.i1]
         return
 
     def nc_write(self):
@@ -221,7 +220,7 @@ class Segment(object):
         return
 
     def nc_append(self):
-        self.f = Dataset(self.filename, mode='a')
+        self.f = Dataset(self.filename, mode='r+')
         print 'Opened in append mode: %s' %self.filename
         return
 

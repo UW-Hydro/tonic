@@ -106,13 +106,14 @@ class Plist(list):
 # -------------------------------------------------------------------- #
 # Segment object
 class Segment(object):
-    def __init__(self, num, i0, i1, nc_format, filename):
+    def __init__(self, num, i0, i1, nc_format, filename, big_memory=False):
         '''Class used for holding segment information '''
         self.num = num
         self.i0 = i0
         self.i1 = i1
         self.filename = filename
         self.fields = {}
+        self.big_memory = big_memory
 
         self.nc_write(nc_format)
 
@@ -215,6 +216,9 @@ End Index: %s
         self.three_dim_vars = []
         self.four_dim_vars = []
 
+        if self.big_memory:
+            self.data = {}
+
         for name, field in fields.iteritems():
 
             if 'dim4' in field.keys():
@@ -237,20 +241,32 @@ End Index: %s
                 prec = prec_global
             fill_val = default_fillvals[prec]
 
-            self.fields[name] = self.f.createVariable(name,
-                                                      prec,
-                                                      coords,
-                                                      fill_value=fill_val)
+            self.fields[name] = self.f.createVariable(name, prec, coords, fill_value=fill_val)
 
             if 'units' in field.keys():
                 self.fields[name].long_name = name
+                self.fields[name].coordinates = 'lon lat'
                 for key, val in field.iteritems():
                     setattr(self.fields[name], key, val)
             else:
                 raise ValueError('Field %s missing units attribute', name)
+
+            # setup array for big_memory
+            if self.big_memory:
+                self.data[name] = np.zeros(self.fields[name].shape, dtype=prec) + fill_val
+
         return
 
-    def nc_add_data(self, data):
+    def nc_add_data_big_memory(self, point):
+        for name in self.three_dim_vars:
+            self.data[name][:, point.y, point.x] = point.df[name].values[self.i0:self.i1]
+        for name in self.four_dim_vars:
+            varshape = self.f.variables[name].shape[1]
+            for i in xrange(varshape):
+                subname = name + str(i)
+                self.data[name][:, i, point.y, point.x] = point.df[subname].values[self.i0:self.i1]
+
+    def nc_add_data_standard(self, data):
         for filename, point in data.iteritems():
             for name in self.three_dim_vars:
                 self.f.variables[name][:, point.y, point.x] = point.df[name].values[self.i0:self.i1]
@@ -259,15 +275,17 @@ End Index: %s
                 for i in xrange(varshape):
                     subname = name + str(i)
                     self.f.variables[name][:, i, point.y, point.x] = point.df[subname].values[self.i0:self.i1]
-        return
+
+    def nc_write_data_big_memory(self):
+        """ write completed data arrays to disk """
+        for name in self.three_dim_vars:
+            self.f.variables[name][:, :, :] = self.data[name]
+        for name in self.four_dim_vars:
+                self.f.variables[name][:, :, :, :] = self.data[name]
 
     def nc_write(self, nc_format):
         self.f = Dataset(self.filename, mode="w", clobber=True, format=nc_format)
         print('Opened in write mode: %s' %self.filename)
-
-    def nc_append(self):
-        self.f = Dataset(self.filename, mode='r+')
-        print('Opened in append mode: %s' %self.filename)
 
     def nc_close(self):
         self.f.close()
@@ -299,7 +317,7 @@ def main():
 
     # ---------------------------------------------------------------- #
     # Read command Line
-    config_file, create_batch, batch_dir = process_command_line()
+    config_file, big_memory, create_batch, batch_dir = process_command_line()
     # ---------------------------------------------------------------- #
 
     if create_batch:
@@ -316,15 +334,21 @@ def main():
         domain_dict = config_dict.pop('DOMAIN')
         fields = config_dict
 
-        vic2nc(options, global_atts, domain_dict, fields)
+        vic2nc(options, global_atts, domain_dict, fields, big_memory)
         # ------------------------------------------------------------ #
     return
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
 # VIC2NC program
-def vic2nc(options, global_atts, domain_dict, fields):
+def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     """ Convert ascii VIC files to netCDF format"""
+
+    # determine run mode
+    if big_memory or not options['chunksize'] or options['chunksize'].lower()=='all':
+        big_memory = True
+    else:
+        big_memory = False
 
     print("\n-------------------------------")
     print("Configuration File Options")
@@ -338,8 +362,12 @@ def vic2nc(options, global_atts, domain_dict, fields):
     print("--------GLOBAL_ATTRIBUTES--------")
     for pair in global_atts.iteritems():
         print("%s: %s" %(pair))
+    print("--------RUN MODE--------")
+    if big_memory:
+        print('Run Mode: big_memory')
+    else:
+        print('Run Mode: standard (chunking)')
     print("---------------------------------\n")
-
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -367,7 +395,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
         if start_date < vic_datelist[0]:
             print("WARNING: Start date in configuration file is before first date in file.")
             start_date = vic_datelist[0]
-            print('WARNING: New start date is ', start_date)
+            print('WARNING: New start date is %s' %start_date)
     else:
         start_date = vic_datelist[0]
 
@@ -384,8 +412,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
     start_ord = date2num(start_date, TIMEUNITS, calendar=options['calendar'])
     end_ord = date2num(end_date, TIMEUNITS, calendar=options['calendar'])
 
-    print("netCDF Start Date:", start_date)
-    print("netCDF End Date:", end_date)
+    print("netCDF Start Date: %s" %start_date)
+    print("netCDF End Date: %s" %end_date)
 
     segment_dates = []
     if options['time_segment'] == 'day':
@@ -424,7 +452,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
         segment_dates=[start_date, end_date]
     else:
         raise ValueError('Unknown timesegment options %s', options['time_segment'])
-    print("Number of files: ", len(segment_dates)-1)
+    print("Number of files: %s" %(len(segment_dates)-1))
     assert len(segment_dates) == num_segments+1
 
     # Make sure the first and last dates are start/end_date
@@ -461,7 +489,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
 
         # Setup segment and initialize netcdf
         segments[num] = Segment(num, i0, i1, options['out_file_format'],
-                                filename)
+                                filename, big_memory=big_memory)
         segments[num].nc_globals(target_grid_file=target_grid_file,
                                  **global_atts)
         segments[num].nc_time(vic_ordtime, options['calendar'])
@@ -489,22 +517,35 @@ def vic2nc(options, global_atts, domain_dict, fields):
             usecols.append(field['column'])
     # ---------------------------------------------------------------- #
 
-    # ---------------------------------------------------------------- #
-    # Chunk the input files
-    point_chunks = chunks(points, int(options['chunksize']))
-    # ---------------------------------------------------------------- #
-
-    # ---------------------------------------------------------------- #
-    # Open VIC files and put data into netcdfs
-    for chunk in point_chunks:
-        data_points = {}
-        for point in chunk:
+    if big_memory:
+        # run in big memory mode
+        while points:
+            point = points.pop()
             point.read(names=names, usecols=usecols)
-            data_points[point.filename] = point
 
-        for segment in segments:
-            segment.nc_add_data(data_points)
-    # ---------------------------------------------------------------- #
+            for num in xrange(num_segments):
+                segments[num].nc_add_data_big_memory(point)
+
+    for num in xrange(num_segments):
+        segments[num].nc_write_data_big_memory()
+
+    else:
+        # ------------------------------------------------------------ #
+        # Chunk the input files
+        point_chunks = chunks(points, int(options['chunksize']))
+        # ------------------------------------------------------------ #
+
+        # ------------------------------------------------------------ #
+        # Open VIC files and put data into netcdfs
+        for chunk in point_chunks:
+            data_points = {}
+            for point in chunk:
+                point.read(names=names, usecols=usecols)
+                data_points[point.filename] = point
+
+            for segment in segments:
+                segment.nc_add_data_standard(data_points)
+        # ------------------------------------------------------------ #
 
     # ---------------------------------------------------------------- #
     # Close the netcdf files
@@ -528,7 +569,7 @@ def read_config(config_file):
     """
     Return a dictionary with subdictionaries of all configFile options/values
     """
-    config = SafeConfigParser(defaults=default_config)
+    config = SafeConfigParser()
     config.optionxform = str
     config.read(config_file)
     sections = config.sections()
@@ -539,6 +580,13 @@ def read_config(config_file):
         for option in options:
             dict2[option] = config_type(config.get(section, option))
         dict1[section] = dict2
+
+    for name, section in dict1.iteritems():
+        if name in default_config.keys():
+            for option, key in default_config[name].iteritems():
+                if option not in section.keys():
+                    dict1[name][option] = key
+
     return dict1
 
 def config_type(value):
@@ -609,8 +657,8 @@ def get_dates(file):
     data = np.loadtxt(file, usecols=(0, 1, 2, 3), dtype=int)
     datelist = [datetime(*d) for d in data]
 
-    print('VIC startdate:', datelist[0])
-    print('VIC enddate:', datelist[-1])
+    print('VIC startdate: %s' %datelist[0])
+    print('VIC enddate: %s' %datelist[-1])
 
     return datelist
 # -------------------------------------------------------------------- #
@@ -793,6 +841,8 @@ def process_command_line():
     parser = ArgumentParser(description='convert VIC ascii output to netCDF format')
     parser.add_argument("config_file", type=str,
                         help="Input configuration file")
+    parser.add_argument("--big_memory", action='store_true',
+                        help="Operate in high memory mode (all data will be stored in memory until write time)")
     parser.add_argument("--create_batch", type=str, choices=['days', 'months', 'years', 'variables'],
                         default=False, help="Create a batch of config files")
     parser.add_argument("--batch_dir", type=str, default="./",
@@ -805,7 +855,7 @@ def process_command_line():
     if not os.path.isdir(args.batch_dir) and args.create_batch:
         raise IOError('Configuration File: %s is not a valid file' %(args.config_file))
 
-    return args.config_file, args.create_batch, args.batch_dir
+    return args.config_file, args.big_memory, args.create_batch, args.batch_dir
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #

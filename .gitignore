@@ -9,6 +9,9 @@ plots/
 *tmp*
 *~
 
+*cfg
+
+
 # Compiled source #
 ###################
 *.com

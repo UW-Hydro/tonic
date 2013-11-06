@@ -39,6 +39,18 @@ TIMESTAMPFORM = '%Y-%m-%d-%H'
 NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
 
+# Default configuration
+default_config = {'OPTIONS':{'out_file_format': 'NETCDF3_64BIT',
+                             'precision': 'single',
+                             'calendar': 'standard',
+                             'time_segment': 'month',
+                             'snow_bands': False,
+                             'veg_tiles': False,
+                             'soil_layers': False},
+                  'DOMAIN':{'longitude_var': 'longitude',
+                            'latitude_var': 'latitude',
+                            'y_x_dims': ['y', 'x']}}
+
 # -------------------------------------------------------------------- #
 # Point object
 class Point(object):
@@ -516,7 +528,7 @@ def read_config(config_file):
     """
     Return a dictionary with subdictionaries of all configFile options/values
     """
-    config = SafeConfigParser()
+    config = SafeConfigParser(defaults=default_config)
     config.optionxform = str
     config.read(config_file)
     sections = config.sections()

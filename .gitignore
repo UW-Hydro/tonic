@@ -17,6 +17,7 @@ plots/
 *.exe
 *.o
 *.so
+*pyc
 
 # Packages #
 ############
@@ -46,3 +47,4 @@ plots/
 .Trashes
 ehthumbs.db
 Thumbs.db
+*.sublime-*

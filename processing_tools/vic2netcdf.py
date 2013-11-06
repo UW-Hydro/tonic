@@ -1,5 +1,19 @@
 #!/usr/bin/env python
-import traceback
+"""
+Python implementation of vic2nc
+
+This module facilitates the conversion of ascii VIC output files into 3 or 4
+dimenstional netcdf files.
+
+References:
+ - VIC: http://www.hydro.washington.edu/Lettenmaier/Models/VIC/index.shtml
+ - netCDF: http://www.unidata.ucar.edu/software/netcdf/
+ - Python netCDF4: https://code.google.com/p/netcdf4-python/
+ - NetCDF Climate and Forecast (CF) Metadata Convention: http://cf-pcmdi.llnl.gov/
+ - Pandas: http://pandas.pydata.org/
+"""
+
+# Imports
 from os import path
 from glob import glob
 from re import findall
@@ -12,36 +26,18 @@ from pandas import read_csv
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
-from multiprocessing.pool import Pool
-import multiprocessing
-multiprocessing.log_to_stderr()
-import sys
+import dateutil.relativedelta as relativedelta
+import os, sys
 import numpy as np
 import time as tm
-'''
-Development plan
-1.  read configuration
-2.  create points dict
-3.  create GLOBAL dict of netcdfs (for each segment)
-4.  use Pool to split file Point list by chunksize
-5.  for each point,
-    - open file
-    - loop over segments, writing data to put appropriate file and variables
-    - close file
-6.  close GLOBAL dict of netcdfs
-'''
 
 REFERENCE_STRING = '0001-1-1 0:0:0'
 TIMEUNITS = 'days since ' + REFERENCE_STRING     # do not change (MUST BE DAYS)!
 TIMESTAMPFORM = '%Y-%m-%d-%H'
 
-# precision
+# Precision
 NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
-
-# Global declaration of data list
-data_points = {}
-segments = {}
 
 # -------------------------------------------------------------------- #
 # Point object
@@ -57,7 +53,7 @@ class Point(object):
         self.filename = filename
 
     def read(self, names=[], usecols=[]):
-        print 'reading', self.filename
+        print('reading %s' %self.filename)
         self.df = read_csv(self.filename,
                            delimiter='\t',
                            header=None,
@@ -69,7 +65,8 @@ class Point(object):
         return "Point(%s,%s,%s,%s)" % (self.lat, self.lon, self.y, self.x)
 
     def __repr__(self):
-        return '__repr__'
+        return "Point(lat=%s, lon=%s, y=%s, x=%s, filename=%s)" % (self.lat, self.lon, self.y, self.x, self.filename)
+
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
@@ -97,7 +94,7 @@ class Plist(list):
 # -------------------------------------------------------------------- #
 # Segment object
 class Segment(object):
-    def __init__(self, num, i0, i1, filename):
+    def __init__(self, num, i0, i1, nc_format, filename):
         '''Class used for holding segment information '''
         self.num = num
         self.i0 = i0
@@ -105,7 +102,7 @@ class Segment(object):
         self.filename = filename
         self.fields = {}
 
-        self.nc_write()
+        self.nc_write(nc_format)
 
 
     def nc_globals(self,
@@ -129,14 +126,21 @@ class Segment(object):
 
         for attribute, value in kwargs.iteritems():
             if hasattr(self.f, attribute):
-                print 'WARNING: Attribute %s already exists.'
-                print 'Renaming to g_%s to ovoid overwriting.' %(attribute, attribute)
+                print('WARNING: Attribute %s already exists.')
+                print('Renaming to g_%s to ovoid overwriting.' %(attribute, attribute))
                 attribute='g_'+attribute
             setattr(self.f, attribute, value)
         return
 
     def __str__(self):
-        return "Segment(%s,%s)" % (self.i0, self.i1)
+        return "Segment Object(%s)" % (self.filename)
+
+    def __repr__(self):
+        return """-------------------------- Segment %s --------------------------
+Filename: %s
+Start Index: %s
+End Index: %s
+------------------------------------------------------------------""" %(self.num, self.filename, self.i0, self.i1)
 
     def nc_time(self, times, calendar):
         """ define time dimension (and write data) """
@@ -173,6 +177,16 @@ class Segment(object):
 
         return
 
+    def nc_dimensions(self, snow_bands=False, veg_tiles=False, soil_layers=False):
+        """ Define 4th dimensions """
+        if snow_bands:
+            d = self.f.createDimension('snow_bands', snow_bands)
+        if veg_tiles:
+            d = self.f.createDimension('veg_tiles', veg_tiles)
+        if soil_layers:
+            d = self.f.createDimension('soil_layers', soil_layers)
+        return
+
     def nc_fields(self, fields, y_x_dims, precision):
         """ define each field """
         coords = ('time',)+tuple(y_x_dims)
@@ -186,7 +200,24 @@ class Segment(object):
         else:
             raise ValueError('Unkown value for OPTIONS[precision] field: %s', precision)
 
+        self.three_dim_vars = []
+        self.four_dim_vars = []
+
         for name, field in fields.iteritems():
+
+            if 'dim4' in field.keys():
+                if len(field['column'])==len(self.f.dimensions[field['dim4']]):
+                    # 4d var
+                    coords = ('time',)+tuple([field['dim4']])+tuple(y_x_dims)
+                    self.four_dim_vars.append(name)
+                elif len(field['column'])!=len(self.f.dimensions[field['dim4']]):
+                    raise ValueError('Number of columns for variable %s \
+                                     does not match the length (%s) of the \
+                                     %s dimension' %(name, len(self.f.dimensions[field['dim4']]), field['dim4']))
+            else:
+                # standard 3d var
+                coords = ('time',)+tuple(y_x_dims)
+                self.three_dim_vars.append(name)
 
             if 'type' in field.keys():
                 prec = field['type']
@@ -209,25 +240,26 @@ class Segment(object):
 
     def nc_add_data(self, data):
         for filename, point in data.iteritems():
-            print 'adding data to %s from %s' %(self.filename, point.filename)
-            for name in self.var_list:
+            for name in self.three_dim_vars:
                 self.f.variables[name][:, point.y, point.x] = point.df[name].values[self.i0:self.i1]
+            for name in self.four_dim_vars:
+                varshape = self.f.variables[name].shape[1]
+                for i in xrange(varshape):
+                    subname = name + str(i)
+                    self.f.variables[name][:, i, point.y, point.x] = point.df[subname].values[self.i0:self.i1]
         return
 
-    def nc_write(self):
-        self.f = Dataset(self.filename, mode="w", clobber=True, format='NETCDF4_CLASSIC')
-        print 'Opened in write mode: %s' %self.filename
-        return
+    def nc_write(self, nc_format):
+        self.f = Dataset(self.filename, mode="w", clobber=True, format=nc_format)
+        print('Opened in write mode: %s' %self.filename)
 
     def nc_append(self):
         self.f = Dataset(self.filename, mode='r+')
-        print 'Opened in append mode: %s' %self.filename
-        return
+        print('Opened in append mode: %s' %self.filename)
 
     def nc_close(self):
         self.f.close()
-        print 'Closed: %s' %self.filename
-        return
+        print('Closed: %s' %self.filename)
 # -------------------------------------------------------------------- #
 
 
@@ -248,35 +280,6 @@ class NcVar(np.ndarray):
         if obj is None: return
 # -------------------------------------------------------------------- #
 
-# Shortcut to multiprocessing's logger
-def error(msg, *args):
-    return multiprocessing.get_logger().error(msg, *args)
-
-class LogExceptions(object):
-    def __init__(self, callable):
-        self.__callable = callable
-        return
-
-    def __call__(self, *args, **kwargs):
-        try:
-            result = self.__callable(*args, **kwargs)
-
-        except Exception as e:
-            # Here we add some debugging help. If multiprocessing's
-            # debugging is on, it will arrange to log the traceback
-            error(traceback.format_exc())
-            # Re-raise the original exception so the Pool worker can
-            # clean up
-            raise
-
-        # It was fine, give a normal answer
-        return result
-    pass
-
-class LoggingPool(Pool):
-    def apply_async(self, func, args=(), kwds={}, callback=None):
-        return Pool.apply_async(self, LogExceptions(func), args, kwds, callback)
-
 
 # -------------------------------------------------------------------- #
 # Top level driver
@@ -284,30 +287,46 @@ def main():
 
     # ---------------------------------------------------------------- #
     # Read command Line
-    config_file, numofproc = process_command_line()
+    config_file, create_batch, batch_dir = process_command_line()
     # ---------------------------------------------------------------- #
 
-    # ---------------------------------------------------------------- #
-    # Read Configuration files
-    config_dict = read_config(config_file)
-    options = config_dict.pop('OPTIONS')
-    global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
-    domain_dict = config_dict.pop('DOMAIN')
-    fields = config_dict
+    if create_batch:
+        # ------------------------------------------------------------ #
+        # Create batch files and exit
+        batch(config_file, create_batch, batch_dir)
+        # ------------------------------------------------------------ #
+    else:
+        # ------------------------------------------------------------ #
+        # Read Configuration files
+        config_dict = read_config(config_file)
+        options = config_dict.pop('OPTIONS')
+        global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
+        domain_dict = config_dict.pop('DOMAIN')
+        fields = config_dict
 
-    print "\n-------------------------------"
-    print "Configuration File Options"
-    print "-------------OPTIONS-------------"
+        vic2nc(options, global_atts, domain_dict, fields)
+        # ------------------------------------------------------------ #
+    return
+# -------------------------------------------------------------------- #
+
+# -------------------------------------------------------------------- #
+# VIC2NC program
+def vic2nc(options, global_atts, domain_dict, fields):
+    """ Convert ascii VIC files to netCDF format"""
+
+    print("\n-------------------------------")
+    print("Configuration File Options")
+    print("-------------OPTIONS-------------")
     for pair in options.iteritems():
-        print "%s: %s" %(pair)
-    print 'Fields %s' %fields.keys()
-    print "-------------DOMAIN--------------"
+        print("%s: %s" %(pair))
+    print('Fields %s' %fields.keys())
+    print("-------------DOMAIN--------------")
     for pair in domain_dict.iteritems():
-        print "%s: %s" %(pair)
-    print "--------GLOBAL_ATTRIBUTES--------"
+        print("%s: %s" %(pair))
+    print("--------GLOBAL_ATTRIBUTES--------")
     for pair in global_atts.iteritems():
-        print "%s: %s" %(pair)
-    print "---------------------------------\n"
+        print("%s: %s" %(pair))
+    print("---------------------------------\n")
 
     # ---------------------------------------------------------------- #
 
@@ -317,7 +336,7 @@ def main():
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # make pairs (i.e. find inds)
+    # Make pairs (i.e. find inds)
     files = glob(options['input_files'])
     points = get_file_coords(files)
     points = get_grid_inds(domain, points)
@@ -334,25 +353,27 @@ def main():
     if options['start_date']:
         start_date = datetime.strptime(options['start_date'], TIMESTAMPFORM)
         if start_date < vic_datelist[0]:
-            print "WARNING: Start date in configuration file is before first date in file."
+            print("WARNING: Start date in configuration file is before first date in file.")
             start_date = vic_datelist[0]
-            print 'WARNING: New start date is %s' %start_date
+            print('WARNING: New start date is ', start_date)
     else:
         start_date = vic_datelist[0]
 
     if options['end_date']:
         end_date = datetime.strptime(options['end_date'], TIMESTAMPFORM)
         if end_date > vic_datelist[-1]:
-            print "WARNING: End date in configuration file is after last date in file."
+            print("WARNING: End date in configuration file is after last date in file.")
             end_date = vic_datelist[-1]
-            print 'WARNING: New end date is %s' %end_date
+            print('WARNING: New end date is %s' %end_date)
+    else:
+        end_date = vic_datelist[-1]
 
     # Ordinal Time
     start_ord = date2num(start_date, TIMEUNITS, calendar=options['calendar'])
     end_ord = date2num(end_date, TIMEUNITS, calendar=options['calendar'])
 
-    print "netCDF Start Date:", start_date
-    print "netCDF End Date:", end_date
+    print("netCDF Start Date:", start_date)
+    print("netCDF End Date:", end_date)
 
     segment_dates = []
     if options['time_segment'] == 'day':
@@ -391,7 +412,7 @@ def main():
         segment_dates=[start_date, end_date]
     else:
         raise ValueError('Unknown timesegment options %s', options['time_segment'])
-    print "Number of files: ", len(segment_dates)-1
+    print("Number of files: ", len(segment_dates)-1)
     assert len(segment_dates) == num_segments+1
 
     # Make sure the first and last dates are start/end_date
@@ -399,160 +420,89 @@ def main():
     segment_dates[-1] = end_date
 
     target_grid_file = path.split(domain_dict['filename'])[1]
-
-    if numofproc > 1:
-        pool0 = LoggingPool(processes=numofproc)
-
-        for num in xrange(len(segment_dates)-1):
-            # Segment time bounds
-            t0 = segment_dates[num]
-            t1 = segment_dates[num+1]
-
-            # Get segment inds
-            i0 = bisect_right(vic_datelist, t0)
-            i1 = bisect_left(vic_datelist, t1)
-
-            # Make segment filename (with path)
-            filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
-            filename = path.join(options['out_directory'], filename, )
-
-            # Setup segment and initialize netcdf
-            pool0.apply_async(setup_segment,
-                             args=(num, i0, i1, filename, global_atts,
-                                   vic_ordtime, options, domain_dict, fields),
-                             callback=store_segment)
-        pool0.close()
-        pool0.join()
-    else:
-        for num in xrange(len(segment_dates)-1):
-            # Segment time bounds
-            t0 = segment_dates[num]
-            t1 = segment_dates[num+1]
-
-            # Get segment inds
-            i0 = bisect_right(vic_datelist, t0)
-            i1 = bisect_left(vic_datelist, t1)
-
-            # Make segment filename (with path)
-            filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
-            filename = path.join(options['out_directory'], filename, )
-
-            # Setup segment and initialize netcdf
-            segments[num] = Segment(num, i0, i1, filename)
-            segments[num].nc_globals(target_grid_file=target_grid_file,
-                                     **global_atts)
-            segments[num].nc_time(vic_ordtime, options['calendar'])
-            segments[num].nc_domain(domain)
-            segments[num].nc_fields(fields, domain_dict['y_x_dims'], options['precision'])
-
-    for num, segment in segments.iteritems():
-        print "\n-------------------------- Segment %s --------------------------" %num
-        print "Filename: %s" %segment.filename
-        print "Start Index: %s" %segment.i0
-        print "End Index: %s" %segment.i1
-        print "------------------------------------------------------------------"
     # ---------------------------------------------------------------- #
 
-    # After profiling, writing seems to be taking about 10 times as long as reading
-    # We cant pass around file descriptors so instead, we'll use multiprocessing to
-    # read big chunks of files and then write them to each segment.
-    # It also turns out that writing is slow enough that it makes sense to sacrafice
-    # opening and closing the nc files so that we can use the other processors.
+    # ---------------------------------------------------------------- #
+    # Setup Segments
+    segments = np.empty(num_segments, dtype=object)
+
+    for num in xrange(num_segments):
+        # Segment time bounds
+        t0 = segment_dates[num]
+        t1 = segment_dates[num+1]
+
+        # Get segment inds
+        i0 = bisect_left(vic_datelist, t0)
+        i1 = bisect_right(vic_datelist, t1)
+
+        # Make segment filename (with path)
+        if options['time_segment'] == 'day':
+            filename = "%s.%s.nc" %(options['out_file_prefix'], t0.strftime('%Y-%m-%d'))
+        elif options['time_segment'] == 'month':
+            filename = "%s.%s.nc" %(options['out_file_prefix'], t0.strftime('%Y-%m'))
+        elif options['time_segment'] == 'year':
+            filename = "%s.%s.nc" %(options['out_file_prefix'], t0.strftime('%Y'))
+        elif options['time_segment'] == 'all':
+            filename = "%s.%s-%s.nc" %(options['out_file_prefix'], t0.strftime('%Y%m%d'), t1.strftime('%Y%m%d'))
+
+        filename = path.join(options['out_directory'], filename)
+
+        # Setup segment and initialize netcdf
+        segments[num] = Segment(num, i0, i1, options['out_file_format'],
+                                filename)
+        segments[num].nc_globals(target_grid_file=target_grid_file,
+                                 **global_atts)
+        segments[num].nc_time(vic_ordtime, options['calendar'])
+        segments[num].nc_dimensions(snow_bands=options['snow_bands'],
+                                    veg_tiles=options['veg_tiles'],
+                                    soil_layers=options['soil_layers'])
+        segments[num].nc_domain(domain)
+        segments[num].nc_fields(fields,
+                                domain_dict['y_x_dims'], options['precision'])
+
+        print(repr(segments[num]))
+    # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
     # Get column numbers and names (will help speed up reading)
     names = []
     usecols = []
     for name, field in fields.iteritems():
-        names.append(name)
-        usecols.append(field['column'])
+        if type(field['column']) == list:
+            for i, col in enumerate(field['column']):
+                names.append(name+str(i))
+                usecols.append(col)
+        else:
+            names.append(name)
+            usecols.append(field['column'])
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # Get chunksize
+    # Chunk the input files
     point_chunks = chunks(points, int(options['chunksize']))
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # Open VIC files and put in netcdfs
-    global data_points
-    if numofproc > 1:
-        for chunk in point_chunks:
-            # read chunk of points
-            pool0 = LoggingPool(processes=numofproc)
-            for point in chunk:
-                print point
-                pool0.apply_async(read_point,
-                                 args=(point, names, usecols),
-                                 callback=store_data)
+    # Open VIC files and put data into netcdfs
+    for chunk in point_chunks:
+        data_points = {}
+        for point in chunk:
+            point.read(names=names, usecols=usecols)
+            data_points[point.filename] = point
 
-            pool0.close()
-            pool0.join()
-            print 'done reading points for this chunk'
-            # Use a new pool for writing
-            pool2 = LoggingPool(processes=numofproc)
-            print 'setup pool2 for writing / appending data'
-            for num, segment in segments.iteritems():
+        for segment in segments:
+            segment.nc_add_data(data_points)
+    # ---------------------------------------------------------------- #
 
-                pool2.apply_async(add_data,
-                                 args=(data_points, segment))
-            pool2.close()
-            pool2.join()
-            data_points = {}
-    else:
-        for chunk in point_chunks:
-            for point in chunk:
-                point.read(names=names, usecols=usecols)
-                data_points[point.filename] = point
-
-            for num, segment in segments.iteritems():
-                segment.nc_add_data(data_points)
-            data_points = {}
-        # Close the netcdf files
-        for num, segment in segments.iteritems():
-            segment.nc_close()
+    # ---------------------------------------------------------------- #
+    # Close the netcdf files
+    for segment in segments:
+        segment.nc_close()
     # ---------------------------------------------------------------- #
     return
+# -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
-# Helper functions to support multiprocessing
-# wrapper function for seting up netcdf segments
-def setup_segment(num, i0, i1, filename, global_atts,
-                  vic_ordtime, options, domain_dict, fields):
-    domain = read_domain(domain_dict)
-    target_grid_file = path.split(domain_dict['filename'])[1]
-    seg = Segment(num, i0, i1, filename)
-    seg.nc_globals(target_grid_file=target_grid_file,
-                             **global_atts)
-    seg.nc_time(vic_ordtime, options['calendar'])
-    seg.nc_domain(domain)
-    seg.nc_fields(fields, domain_dict['y_x_dims'], options['precision'])
-    seg.nc_close()
-    return seg
-
-def add_data(data_points, seg):
-    created = multiprocessing.Process()
-    current = multiprocessing.current_process()
-    print 'running:', current.name, current._identity
-    print 'created:', created.name, created._identity
-    seg.nc_append()
-    seg.nc_add_data(data_points)
-    seg.nc_close()
-    return seg
-
-# Callback function for setup_segment
-def store_segment(seg):
-    segments[seg.num] = seg
-
-# point.read wrapper function to ovoid pickling error
-def read_point(point, names, usecols):
-    point.read(names=names, usecols=usecols)
-    return point
-
-# Callback function for read_point
-def store_data(point):
-    data_points[point.filename] = point
-
 # Generator to chunk points list
 def chunks(l, n):
     """ Yield successive n-sized chunks from l."""
@@ -613,24 +563,13 @@ def config_type(value):
             return val_list
 # -------------------------------------------------------------------- #
 
-
-# -------------------------------------------------------------------- #
-def process_command_line():
-    """
-    Get the path to the config_file
-    """
-    # Parse arguments
-    parser = ArgumentParser(description='convert VIC ascii output to netCDF format')
-    parser.add_argument("config_file", type=str,
-                        help="Input configuration file")
-    parser.add_argument("-np", "--numofproc", type=int,
-                        help="Number of processors used to run job", default=1)
-
-    args = parser.parse_args()
-
-    return args.config_file, args.numofproc
-# -------------------------------------------------------------------- #
-
+def flatten(foo):
+    for x in foo:
+        if hasattr(x, '__iter__'):
+            for y in flatten(x):
+                yield y
+        else:
+            yield x
 
 # -------------------------------------------------------------------- #
 def get_file_coords(files):
@@ -658,8 +597,8 @@ def get_dates(file):
     data = np.loadtxt(file, usecols=(0, 1, 2, 3), dtype=int)
     datelist = [datetime(*d) for d in data]
 
-    print 'VIC startdate:', datelist[0]
-    print 'VIC enddate:', datelist[-1]
+    print('VIC startdate:', datelist[0])
+    print('VIC enddate:', datelist[-1])
 
     return datelist
 # -------------------------------------------------------------------- #
@@ -667,7 +606,7 @@ def get_dates(file):
 # -------------------------------------------------------------------- #
 def read_domain(domain_dict):
 
-    print 'reading domain file: %s' %domain_dict['filename']
+    print('reading domain file: %s' %domain_dict['filename'])
     f = Dataset(domain_dict['filename'])
 
     domain = {'lon': NcVar(f, domain_dict['longitude_var']),
@@ -693,7 +632,11 @@ def get_grid_inds(domain, points):
     if (lons.min()<0 and domain['lon'].min()>=0):
         posinds = np.nonzero(lons<0)
         lons[posinds] += 360
-        print 'adjusted VIC lon minimum (+360 for negative lons)'
+        print('adjusted VIC lon minimum (+360 for negative lons)')
+
+    # Make sure the longitude / latitude vars are 2d
+    if domain['lat'].ndim == 1 or domain['lon'].ndim == 1:
+        domain['lat'], domain['lon'] = np.meshgrid(domain['lat'], domain['lon'])
 
     combined = np.dstack(([domain['lat'].ravel(), domain['lon'].ravel()]))[0]
     point_list = list(np.vstack((lats, lons)).transpose())
@@ -707,6 +650,150 @@ def get_grid_inds(domain, points):
     points.add_ys(yinds)
 
     return points
+# -------------------------------------------------------------------- #
+
+def batch(config_file, create_batch, batch_dir):
+    """Create a set of batch configuration files"""
+
+    # Read Configuration files
+    config_dict = read_config(config_file)
+    options = config_dict.pop('OPTIONS')
+    global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
+    domain_dict = config_dict.pop('DOMAIN')
+    fields = config_dict
+
+    config = SafeConfigParser()
+    config.optionxform = str
+
+    # Figure out what to call the new files
+    nameprefix = os.path.splitext(os.path.split(config_file)[1])[0]
+
+    if create_batch == 'variables':
+        # batch by variables
+        # options section
+        config.add_section('OPTIONS')
+        for option, value in options.iteritems():
+            if type(value) == list:
+                try:
+                    value = ", ".join(value)
+                except TypeError:
+                    value = ", ".join( repr(e) for e in value)
+            elif type(value) != str:
+                value = str(value)
+            config.set('OPTIONS', option, str(value))
+
+        # global_atts section
+        config.add_section('GLOBAL_ATTRIBUTES')
+        for option, value in global_atts.iteritems():
+            if type(value) == list:
+                try:
+                    value = ", ".join(value)
+                except TypeError:
+                    value = ", ".join( repr(e) for e in value)
+            elif type(value) != str:
+                value = str(value)
+            config.set('GLOBAL_ATTRIBUTES', option, str(value))
+
+        # domain dict section
+        config.add_section('DOMAIN')
+        for option, value in domain_dict.iteritems():
+            if type(value) == list:
+                try:
+                    value = ", ".join(value)
+                except TypeError:
+                    value = ", ".join( repr(e) for e in value)
+            elif type(value) != str:
+                value = str(value)
+
+            config.set('DOMAIN', option, value.strip("'"))
+
+        for var, field in fields.iteritems():
+            suffix="_%s.cfg" %var
+            new_cfg_file = os.path.join(batch_dir, nameprefix+suffix)
+
+            # this var
+            config.add_section(var)
+            for option, value in field.iteritems():
+                if type(value) == list:
+                    try:
+                        value = ", ".join(value)
+                    except TypeError:
+                        value = ", ".join( repr(e) for e in value)
+                elif type(value) != str:
+                    value = str(value)
+                config.set(var, option, str(value))
+
+            # write that config
+            with open(new_cfg_file, 'wb') as cf:
+                config.write(cf)
+
+            # clear the var section
+            config.remove_section(var)
+
+    else:
+        # start with existing config
+        config.read(config_file)
+
+        # by time
+        start_date = datetime.strptime(options['start_date'], TIMESTAMPFORM)
+        end_date = datetime.strptime(options['end_date'], TIMESTAMPFORM)
+
+        t0 = start_date
+
+        if create_batch == 'years':
+            td = relativedelta.relativedelta(years=1)
+            t1 = datetime(t0.year, 12, 31, end_date.hour)
+        elif create_batch == 'months':
+            td = relativedelta.relativedelta(months=1)
+        elif create_batch == 'days':
+            # days option is only valid for gregorian calendar
+            td = relativedelta.relativedelta(days=1)
+
+        hour = relativedelta.relativedelta(hours=-1)
+
+        while t0 < end_date:
+            t1 = t0 + td
+            if t1> end_date:
+                t1 = end_date
+            else:
+                t1 += hour
+
+            suffix = "_%s-%s.cfg" %(t0.strftime("%Y%m%d%H"), t1.strftime("%Y%m%d%H"))
+            new_cfg_file = os.path.join(batch_dir, nameprefix+suffix)
+
+            # Write config replacing start and end dates
+            config.set('OPTIONS', 'start_date', t0.strftime(TIMESTAMPFORM))
+            config.set('OPTIONS', 'end_date', t1.strftime(TIMESTAMPFORM))
+
+            with open(new_cfg_file, 'wb') as cf:
+                config.write(cf)
+
+            t0 += td
+    return
+
+
+# -------------------------------------------------------------------- #
+def process_command_line():
+    """
+    Get the path to the config_file
+    """
+    # Parse arguments
+    parser = ArgumentParser(description='convert VIC ascii output to netCDF format')
+    parser.add_argument("config_file", type=str,
+                        help="Input configuration file")
+    parser.add_argument("--create_batch", type=str, choices=['days', 'months', 'years', 'variables'],
+                        default=False, help="Create a batch of config files")
+    parser.add_argument("--batch_dir", type=str, default="./",
+                        help="Location to put batch config files")
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.config_file):
+        raise IOError('Configuration File: %s is not a valid file' %(args.config_file))
+
+    if not os.path.isdir(args.batch_dir) and args.create_batch:
+        raise IOError('Configuration File: %s is not a valid file' %(args.config_file))
+
+    return args.config_file, args.create_batch, args.batch_dir
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #

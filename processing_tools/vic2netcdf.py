@@ -526,8 +526,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
             for num in xrange(num_segments):
                 segments[num].nc_add_data_big_memory(point)
 
-    for num in xrange(num_segments):
-        segments[num].nc_write_data_big_memory()
+        for num in xrange(num_segments):
+	    segments[num].nc_write_data_big_memory()
 
     else:
         # ------------------------------------------------------------ #

@@ -331,7 +331,10 @@ def main():
         config_dict = read_config(config_file)
         options = config_dict.pop('OPTIONS')
         global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
-        domain_dict = config_dict.pop('DOMAIN')
+        if not options['regular_grid']:
+            domain_dict = config_dict.pop('DOMAIN')
+        else:
+            domain_dict = None
         fields = config_dict
 
         vic2nc(options, global_atts, domain_dict, fields, big_memory)
@@ -371,14 +374,23 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # Get target grid information
-    domain = read_domain(domain_dict)
-    # ---------------------------------------------------------------- #
-
-    # ---------------------------------------------------------------- #
     # Make pairs (i.e. find inds)
     files = glob(options['input_files'])
     points = get_file_coords(files)
+    # ---------------------------------------------------------------- #
+
+
+    # ---------------------------------------------------------------- #
+    # Get target grid information
+    if domain_dict:
+        domain = read_domain(domain_dict)
+    else:
+        # must be a regular grid, build from file names
+        domain = calc_grid(points.get_lats(), points.get_lons())
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # Get grid index locations
     points = get_grid_inds(domain, points)
     # ---------------------------------------------------------------- #
 
@@ -831,6 +843,43 @@ def batch(config_file, create_batch, batch_dir):
             t0 += td
     return
 
+# -------------------------------------------------------------------- #
+def calc_grid(lats, lons, decimals=4):
+    """ determine shape of regular grid from lons and lats"""
+
+    print('Calculating grid size now...')
+
+    target_grid = {}
+
+    # get unique lats and lons
+    target_grid['lon'] = np.sort(np.unique(lons.round(decimals=decimals)))
+    print('found %s unique lons' %len(target_grid['lon']))
+
+    target_grid['lat'] = np.sort(np.unique(lats.round(decimals=decimals)))
+    print('found %s unique lats' %len(target_grid['lat']))
+
+    y, x = latlon2yx(lats, lons, target_grid['lat'], target_grid['lon'])
+
+    mask = np.zeros((len(target_grid['lat']),
+                     len(target_grid['lon'])))
+
+    mask[y, x] = 1
+
+    target_grid['mask'] = mask
+
+    target_attrs = {'lat': {'long_name': 'latitude coordinate',
+                                 'units': 'degrees_north'},
+                    'lon': {'long_name': 'longitude coordinate',
+                                  'units': 'degrees_east'},
+                    'mask': {'long_name': 'domain mask',
+                             'comment': '0 indicates grid cell is not active'}
+    }
+
+    print('Created a target grid based on the lats and lon in the soil parameter file')
+    print('Grid Size: {}'.format(mask.shape))
+
+    return target_grid, target_attrs
+# -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
 def process_command_line():

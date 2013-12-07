@@ -844,6 +844,24 @@ def batch(config_file, create_batch, batch_dir):
     return
 
 # -------------------------------------------------------------------- #
+# find x y coordinates
+def latlon2yx(plats, plons, glats, glons):
+    """find y x coordinates """
+
+    if glons.ndim == 1 or glats.ndim == 1:
+        glons, glats = np.meshgrid(glons, glats)
+
+    combined = np.dstack(([glats.ravel(), glons.ravel()]))[0]
+    points = list(np.vstack((np.array(plats), np.array(plons))).transpose())
+
+    mytree = cKDTree(combined)
+    dist, indexes = mytree.query(points, k=1)
+    y, x = np.unravel_index(np.array(indexes), glons.shape)
+    return y, x
+
+# -------------------------------------------------------------------- #
+
+# -------------------------------------------------------------------- #
 def calc_grid(lats, lons, decimals=4):
     """ determine shape of regular grid from lons and lats"""
 

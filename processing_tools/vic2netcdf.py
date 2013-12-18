@@ -12,7 +12,6 @@ References:
  - NetCDF Climate and Forecast (CF) Metadata Convention: http://cf-pcmdi.llnl.gov/
  - Pandas: http://pandas.pydata.org/
 """
-
 # Imports
 from os import path
 from glob import glob
@@ -26,6 +25,9 @@ from pandas import read_csv
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
+from getpass import getuser
+import socket
+import subprocess
 import dateutil.relativedelta as relativedelta
 import os, sys
 import numpy as np
@@ -127,6 +129,9 @@ class Segment(object):
                    comment='Output from the Variable Infiltration Capacity (VIC) Macroscale Hydrologic Model',
                    Conventions='CF-1.6',
                    target_grid_file='unknown',
+                   username=None,
+                   hostname=None,
+                   version=None,
                    **kwargs):
 
         self.f.title = title
@@ -136,6 +141,21 @@ class Segment(object):
         self.f.references = references
         self.f.comment = comment
         self.f.Conventions = Conventions
+        if hostname:
+            self.f.hostname = hostname
+        else:
+            self.f.hostname = socket.gethostname()
+        if username:
+            self.f.username = username
+        else:
+            self.f.username = getuser()
+        if version:
+            self.f.version = version
+        else:
+            try:
+                self.f.version = subprocess.check_output(["git", "describe"]).rstrip()
+            except:
+                self.f.version = 'unknown'
 
         for attribute, value in kwargs.iteritems():
             if hasattr(self.f, attribute):
@@ -249,7 +269,7 @@ End Index: %s
                 for key, val in field.iteritems():
                     setattr(self.fields[name], key, val)
             else:
-                raise ValueError('Field %s missing units attribute', name)
+                raise ValueError('Field %s missing units attribute' %name)
 
             # setup array for big_memory
             if self.big_memory:
@@ -295,7 +315,7 @@ End Index: %s
 
 # -------------------------------------------------------------------- #
 class NcVar(np.ndarray):
-    """ Subclass of numpy array to carry netcdf attributes"""
+    """ Subclass of numpy array to cary netcdf attributes"""
     def __new__(cls, f, varname):
         obj = np.asarray(f.variables[varname][:]).view(cls)
         # add the new attribute to the created instance
@@ -308,6 +328,25 @@ class NcVar(np.ndarray):
 
     def __array_finalize__(self, obj):
         if obj is None: return
+# -------------------------------------------------------------------- #
+
+# -------------------------------------------------------------------- #
+class FakeNcVar(np.ndarray):
+    """ Subclass of numpy array to carry netcdf attributes"""
+    def __new__(cls, data, dimensions, attributes):
+        obj = np.asarray(data).view(cls)
+        # add the new attribute to the created instance
+        obj.dimensions = dimensions
+        obj.attributes = attributes
+        shape = data.shape
+        for i, dim in enumerate(obj.dimensions):
+            setattr(obj, dim, shape[i])
+        # Finally, we must return the newly created object:
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None:
+            return
 # -------------------------------------------------------------------- #
 
 
@@ -348,7 +387,9 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     """ Convert ascii VIC files to netCDF format"""
 
     # determine run mode
-    if big_memory or not options['chunksize'] or options['chunksize'].lower()=='all':
+    if big_memory \
+        or not options['chunksize'] \
+        or options['chunksize'] in ['all', 'All', 'ALL']:
         big_memory = True
     else:
         big_memory = False
@@ -360,8 +401,9 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         print("%s: %s" %(pair))
     print('Fields %s' %fields.keys())
     print("-------------DOMAIN--------------")
-    for pair in domain_dict.iteritems():
-        print("%s: %s" %(pair))
+    if domain_dict:
+        for pair in domain_dict.iteritems():
+            print("%s: %s" %(pair))
     print("--------GLOBAL_ATTRIBUTES--------")
     for pair in global_atts.iteritems():
         print("%s: %s" %(pair))
@@ -371,6 +413,12 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     else:
         print('Run Mode: standard (chunking)')
     print("---------------------------------\n")
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # Make output directory
+    if not os.path.exists(options['out_directory']):
+        os.makedirs(options['out_directory'])
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -384,9 +432,13 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # Get target grid information
     if domain_dict:
         domain = read_domain(domain_dict)
+        target_grid_file = path.split(domain_dict['filename'])[1]
+        global_atts['target_grid_file'] = target_grid_file
     else:
         # must be a regular grid, build from file names
         domain = calc_grid(points.get_lats(), points.get_lons())
+        target_grid_file = None
+        domain_dict = {'y_x_dims': ['lat', 'lon']}
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -470,8 +522,6 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # Make sure the first and last dates are start/end_date
     segment_dates[0] = start_date
     segment_dates[-1] = end_date
-
-    target_grid_file = path.split(domain_dict['filename'])[1]
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -502,12 +552,12 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         # Setup segment and initialize netcdf
         segments[num] = Segment(num, i0, i1, options['out_file_format'],
                                 filename, big_memory=big_memory)
-        segments[num].nc_globals(target_grid_file=target_grid_file,
-                                 **global_atts)
+        segments[num].nc_globals(**global_atts)
         segments[num].nc_time(vic_ordtime, options['calendar'])
         segments[num].nc_dimensions(snow_bands=options['snow_bands'],
                                     veg_tiles=options['veg_tiles'],
                                     soil_layers=options['soil_layers'])
+
         segments[num].nc_domain(domain)
         segments[num].nc_fields(fields,
                                 domain_dict['y_x_dims'], options['precision'])
@@ -520,6 +570,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     names = []
     usecols = []
     for name, field in fields.iteritems():
+        print name, field
         if type(field['column']) == list:
             for i, col in enumerate(field['column']):
                 names.append(name+str(i))
@@ -527,6 +578,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         else:
             names.append(name)
             usecols.append(field['column'])
+
+
     # ---------------------------------------------------------------- #
 
     if big_memory:
@@ -666,8 +719,23 @@ def get_dates(file):
     Read the first file in the input directory and create a ordinal based timeseries
     Also find the indicies to split the time series into months and years
     """
-    data = np.loadtxt(file, usecols=(0, 1, 2, 3), dtype=int)
-    datelist = [datetime(*d) for d in data]
+    hours = (0, 1, 2, 3)
+    days = (0, 1, 2)
+    try:
+        data = np.loadtxt(file, usecols=hours, dtype=int)
+        datelist = [datetime(*d) for d in data]
+    except (ValueError, TypeError):
+        data = np.loadtxt(file, usecols=days, dtype=int)
+        datelist = [datetime(*d) for d in data]
+
+    # check to make sure we haven't used used daily by mistake
+    # (creating a bunch of duplicate times)
+    newlist = []
+    for i in datelist:
+        if i not in newlist:
+            newlist.append(i)
+        else:
+            raise ValueError('Found duplicate datetimes in datelist')
 
     print('VIC startdate: %s' %datelist[0])
     print('VIC enddate: %s' %datelist[-1])
@@ -708,15 +776,15 @@ def get_grid_inds(domain, points):
 
     # Make sure the longitude / latitude vars are 2d
     if domain['lat'].ndim == 1 or domain['lon'].ndim == 1:
-        domain['lat'], domain['lon'] = np.meshgrid(domain['lat'], domain['lon'])
+        dlons, dlats = np.meshgrid(domain['lon'], domain['lat'])
 
-    combined = np.dstack(([domain['lat'].ravel(), domain['lon'].ravel()]))[0]
+    combined = np.dstack(([dlats.ravel(), dlons.ravel()]))[0]
     point_list = list(np.vstack((lats, lons)).transpose())
 
     mytree = cKDTree(combined)
     dist, indexes = mytree.query(point_list, k=1)
 
-    yinds, xinds = np.unravel_index(indexes, domain['lon'].shape)
+    yinds, xinds = np.unravel_index(indexes, dlons.shape)
 
     points.add_xs(xinds)
     points.add_ys(yinds)
@@ -870,33 +938,30 @@ def calc_grid(lats, lons, decimals=4):
     target_grid = {}
 
     # get unique lats and lons
-    target_grid['lon'] = np.sort(np.unique(lons.round(decimals=decimals)))
-    print('found %s unique lons' %len(target_grid['lon']))
+    lon = np.sort(np.unique(lons.round(decimals=decimals)))
+    print('found %s unique lons' %len(lon))
 
-    target_grid['lat'] = np.sort(np.unique(lats.round(decimals=decimals)))
-    print('found %s unique lats' %len(target_grid['lat']))
+    lat = np.sort(np.unique(lats.round(decimals=decimals)))
+    print('found %s unique lats' %len(lat))
 
-    y, x = latlon2yx(lats, lons, target_grid['lat'], target_grid['lon'])
+    y, x = latlon2yx(lats, lons, lat, lon)
 
-    mask = np.zeros((len(target_grid['lat']),
-                     len(target_grid['lon'])))
+    mask = np.zeros((len(lat), len(lon)))
 
     mask[y, x] = 1
 
-    target_grid['mask'] = mask
+    # Create fake NcVar Types
+    target_grid['lon'] = FakeNcVar(lon, ('lon', ), {'long_name': 'longitude coordinate',
+                                                    'units': 'degrees_east'})
+    target_grid['lat'] = FakeNcVar(lat, ('lat', ), {'long_name': 'latitude coordinate',
+                                                    'units': 'degrees_north'})
+    target_grid['mask'] = FakeNcVar(mask, ('lat', 'lon', ), {'long_name': 'domain mask',
+                                                             'comment': '0 indicates grid cell is not active'})
 
-    target_attrs = {'lat': {'long_name': 'latitude coordinate',
-                                 'units': 'degrees_north'},
-                    'lon': {'long_name': 'longitude coordinate',
-                                  'units': 'degrees_east'},
-                    'mask': {'long_name': 'domain mask',
-                             'comment': '0 indicates grid cell is not active'}
-    }
-
-    print('Created a target grid based on the lats and lon in the soil parameter file')
+    print('Created a target grid based on the lats and lon in the input file names')
     print('Grid Size: {}'.format(mask.shape))
 
-    return target_grid, target_attrs
+    return target_grid
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #

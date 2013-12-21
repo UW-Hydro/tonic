@@ -21,7 +21,7 @@ from bisect import bisect_right, bisect_left
 from argparse import ArgumentParser
 from getpass import getuser
 from datetime import datetime
-from pandas import read_csv
+from pandas import read_csv, DataFrame
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
@@ -40,6 +40,7 @@ TIMESTAMPFORM = '%Y-%m-%d-%H'
 # Precision
 NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
+NC_INT = 'i4'
 
 # Default configuration
 default_config = {'OPTIONS':{'out_file_format': 'NETCDF3_64BIT',
@@ -66,20 +67,34 @@ class Point(object):
         self.y = y
         self.filename = filename
 
-    def read(self, names=[], usecols=[]):
-        print('reading %s' %self.filename)
-        self.df = read_csv(self.filename,
-                           delimiter='\t',
-                           header=None,
-                           usecols=usecols)
-        self.df.columns = names
-        return
+    def read(self, names=[], usecols=[], dtype=None):
+        if self.fileformat == 'ascii':
+            print('reading ascii file: %s' %self.filename)
+            dt = dict(zip(usecols, dtype))
+            self.df = read_csv(self.filename,
+                               delimiter='\t',
+                               header=None,
+                               usecols=usecols,
+                               dtype=dt)
+            self.df.columns = names
+            return
+        elif self.fileformat == 'binary':
+            print('reading binary file: %s' %self.filename)
+            dt = dict(zip(names, dtype))
+            self.df = DataFrame(np.fromfile(self.filename,
+                                            dtype=dt))
+            return
+        elif self.fileformat == 'netcdf':
+            print('reading netcdf file: %s' %self.filename)
+            raise ValueError('Can only take ascii or binary VIC output at this time.')
+        else:
+            raise ValueError("Can only take ascii or binary VIC output at this time.")
 
     def __str__(self):
         return "Point(%s,%s,%s,%s)" % (self.lat, self.lon, self.y, self.x)
 
     def __repr__(self):
-        return "Point(lat=%s, lon=%s, y=%s, x=%s, filename=%s)" % (self.lat, self.lon, self.y, self.x, self.filename)
+        return "Point(lat=%s, lon=%s, y=%s, x=%s, filename=%s)" %(self.lat, self.lon, self.y, self.x, self.filename)
 
 # -------------------------------------------------------------------- #
 
@@ -102,6 +117,11 @@ class Plist(list):
     def add_ys(self, yinds):
         for i in xrange(len(self)):
             self[i].y = yinds[i]
+        return
+
+    def set_fileformat(self, fileformat):
+        for p in self:
+            p.fileformat = fileformat
         return
 # -------------------------------------------------------------------- #
 
@@ -425,8 +445,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # Make pairs (i.e. find inds)
     files = glob(options['input_files'])
     points = get_file_coords(files)
+    points.set_fileformat(options['input_file_format'])
     # ---------------------------------------------------------------- #
-
 
     # ---------------------------------------------------------------- #
     # Get target grid information
@@ -569,24 +589,43 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # Get column numbers and names (will help speed up reading)
     names = []
     usecols = []
+    dtypes = []
+
+    if options['precision'] == 'double':
+        prec = NC_DOUBLE
+    else:
+        prec = NC_FLOAT
+
     for name, field in fields.iteritems():
         print name, field
         if type(field['column']) == list:
+            # multiple levels
             for i, col in enumerate(field['column']):
                 names.append(name+str(i))
                 usecols.append(col)
+            if 'type' in field:
+                if type(field['type']) == list:
+                    dtypes.extend(field['type'])
+                else:
+                    dtypes.extend([field['type']] * len(field['column']))
+            else:
+                dtypes.append([prec] * len(field['column']))
         else:
+            # no levels
             names.append(name)
             usecols.append(field['column'])
-
-
+            if 'type' in field:
+                dtypes.append(field['type'])
+            else:
+                dtypes.append(prec)
     # ---------------------------------------------------------------- #
 
+    # ---------------------------------------------------------------- #
     if big_memory:
         # run in big memory mode
         while points:
             point = points.pop()
-            point.read(names=names, usecols=usecols)
+            point.read(names=names, usecols=usecols, dtype=dtypes)
 
             for num in xrange(num_segments):
                 segments[num].nc_add_data_big_memory(point)
@@ -605,7 +644,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         for chunk in point_chunks:
             data_points = {}
             for point in chunk:
-                point.read(names=names, usecols=usecols)
+                point.read(names=names, usecols=usecols, dtypes=dtypes)
                 data_points[point.filename] = point
 
             for segment in segments:
@@ -946,7 +985,7 @@ def calc_grid(lats, lons, decimals=4):
 
     y, x = latlon2yx(lats, lons, lat, lon)
 
-    mask = np.zeros((len(lat), len(lon)))
+    mask = np.zeros((len(lat), len(lon)), dtype=int)
 
     mask[y, x] = 1
 

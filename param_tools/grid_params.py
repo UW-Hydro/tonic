@@ -14,6 +14,7 @@ import time as tm
 import argparse
 import socket
 from getpass import getuser
+from collections import OrderedDict
 
 # -------------------------------------------------------------------- #
 # precision
@@ -33,55 +34,55 @@ FILLVALUE_I = default_fillvals[NC_INT]
 # -------------------------------------------------------------------- #
 class cols:
     def __init__(self, nlayers=3, snow_bands=5):
-        self.soil_param = {'run_cell':np.array([0]),
-                           'gridcell':np.array([1]),
-                           'lats':np.array([2]),
-                           'lons':np.array([3]),
-                           'infilt':np.array([4]),
-                           'Ds':np.array([5]),
-                           'Dsmax':np.array([6]),
-                           'Ws':np.array([7]),
-                           'c':np.array([8]),
-                           'expt':np.arange(9,nlayers+9),
-                           'Ksat':np.arange(nlayers+9,2*nlayers+9),
-                           'phi_s':np.arange(2*nlayers+9,3*nlayers+9),
-                           'init_moist':np.arange(3*nlayers+9,4*nlayers+9),
-                           'elev':np.array([4*nlayers+9]),
-                           'depth':np.arange(4*nlayers+10,5*nlayers+10),
-                           'avg_T':np.array([5*nlayers+10]),
-                           'dp':np.array([5*nlayers+11]),
-                           'bubble':np.arange(5*nlayers+12,6*nlayers+12),
-                           'quartz':np.arange(6*nlayers+12,7*nlayers+12),
-                           'bulk_density':np.arange(7*nlayers+12,8*nlayers+12),
-                           'soil_density':np.arange(8*nlayers+12,9*nlayers+12),
-                           'off_gmt':np.array([9*nlayers+12]),
-                           'Wcr_FRACT':np.arange(9*nlayers+13,10*nlayers+13),
-                           'Wpwp_FRACT':np.arange(10*nlayers+13,11*nlayers+13),
-                           'rough':np.array([11*nlayers+13]),
-                           'snow_rough':np.array([11*nlayers+14]),
-                           'annual_prec':np.array([11*nlayers+15]),
-                           'resid_moist':np.arange(11*nlayers+16,12*nlayers+16),
-                           'fs_active':np.array([12*nlayers+16])}
+        self.soil_param = OrderedDict([('run_cell',     np.array([0])),
+                                       ('gridcell',     np.array([1])),
+                                       ('lats',         np.array([2])),
+                                       ('lons',         np.array([3])),
+                                       ('infilt',       np.array([4])),
+                                       ('Ds',           np.array([5])),
+                                       ('Dsmax',        np.array([6])),
+                                       ('Ws',           np.array([7])),
+                                       ('c',            np.array([8])),
+                                       ('expt',         np.arange(9,nlayers+9)),
+                                       ('Ksat',         np.arange(nlayers+9,2*nlayers+9)),
+                                       ('phi_s',        np.arange(2*nlayers+9,3*nlayers+9)),
+                                       ('init_moist',   np.arange(3*nlayers+9,4*nlayers+9)),
+                                       ('elev',         np.array([4*nlayers+9])),
+                                       ('depth',        np.arange(4*nlayers+10,5*nlayers+10)),
+                                       ('avg_T',        np.array([5*nlayers+10])),
+                                       ('dp',           np.array([5*nlayers+11])),
+                                       ('bubble',       np.arange(5*nlayers+12,6*nlayers+12)),
+                                       ('quartz',       np.arange(6*nlayers+12,7*nlayers+12)),
+                                       ('bulk_density', np.arange(7*nlayers+12,8*nlayers+12)),
+                                       ('soil_density', np.arange(8*nlayers+12,9*nlayers+12)),
+                                       ('off_gmt',      np.array([9*nlayers+12])),
+                                       ('Wcr_FRACT',    np.arange(9*nlayers+13,10*nlayers+13)),
+                                       ('Wpwp_FRACT',   np.arange(10*nlayers+13,11*nlayers+13)),
+                                       ('rough',        np.array([11*nlayers+13])),
+                                       ('snow_rough',   np.array([11*nlayers+14])),
+                                       ('annual_prec',  np.array([11*nlayers+15])),
+                                       ('resid_moist',  np.arange(11*nlayers+16,12*nlayers+16)),
+                                       ('fs_active',    np.array([12*nlayers+16]))])
 
-        self.snow_param = {'cellnum':np.array([0]),
-                          'AreaFract':np.arange(1,snow_bands+1),
-                          'elevation':np.arange(snow_bands+1,2*snow_bands+1),
-                          'Pfactor':np.arange(2*snow_bands+1,3*snow_bands+1)}
+        self.snow_param = OrderedDict([('cellnum',   np.array([0])),
+                                       ('AreaFract', np.arange(1,snow_bands+1)),
+                                       ('elevation', np.arange(snow_bands+1,2*snow_bands+1)),
+                                       ('Pfactor',   np.arange(2*snow_bands+1,3*snow_bands+1))])
 
-        self.veglib = {'Veg_class':[0],
-                       'lib_overstory':[1],
-                       'lib_rarc':[2],
-                       'lib_rmin':[3],
-                       'lib_LAI':np.arange(4,16),
-                       'lib_albedo':np.arange(16,28),
-                       'lib_rough':np.arange(28,40),
-                       'lib_displacement':np.arange(40,52),
-                       'lib_wind_h':[52],
-                       'lib_RGL':[53],
-                       'lib_rad_atten':[54],
-                       'lib_wind_atten':[55],
-                       'lib_trunk_ratio':[56]}
-                        #'comment': [57]}
+        self.veglib = OrderedDict([('Veg_class', np.array([0])),
+                                   ('lib_overstory', np.array([1])),
+                                   ('lib_rarc', np.array([2])),
+                                   ('lib_rmin', np.array([3])),
+                                   ('lib_LAI', np.arange(4, 16)),
+                                   ('lib_albedo', np.arange(16, 28)),
+                                   ('lib_rough', np.arange(28, 40)),
+                                   ('lib_displacement', np.arange(40, 52)),
+                                   ('lib_wind_h', np.array(52)),
+                                   ('lib_RGL', np.array(53)),
+                                   ('lib_rad_atten', np.array(54)),
+                                   ('lib_wind_atten', np.array(55)),
+                                   ('lib_trunk_ratio', np.array(56))])
+                        #'comment',  [57]}
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
@@ -89,8 +90,8 @@ class format:
     def __init__(self,nlayers=3, snow_bands=5):
         self.soil_param = {'run_cell':'%1i',
                            'gridcell':'%1i',
-                           'lats':'%1.3f',
-                           'lons':'%1.3f',
+                           'lats':'%1.4f',
+                           'lons':'%1.4f',
                            'infilt':'%1.6f',
                            'Ds':'%1.6f',
                            'Dsmax':'%1.6f',

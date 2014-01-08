@@ -33,6 +33,8 @@ import os, sys
 import numpy as np
 import time as tm
 
+SECSPERDAY = 86400.0
+
 REFERENCE_STRING = '0001-1-1 0:0:0'
 TIMEUNITS = 'days since ' + REFERENCE_STRING     # do not change (MUST BE DAYS)!
 TIMESTAMPFORM = '%Y-%m-%d-%H'
@@ -67,28 +69,53 @@ class Point(object):
         self.y = y
         self.filename = filename
 
-    def read(self, names=[], usecols=[], dtype=None):
-        if self.fileformat == 'ascii':
-            print('reading ascii file: %s' %self.filename)
-            dt = dict(zip(usecols, dtype))
-            self.df = read_csv(self.filename,
-                               delimiter='\t',
-                               header=None,
-                               usecols=usecols,
-                               dtype=dt)
-            self.df.columns = names
-            return
+    def set_read():
+        if self.fileformat in ['ascii', 'csv']:
+            if self.fileformat == 'ascii':
+                delimeter = '\t' # VIC ascii files are tab seperated
+            else:
+                delimeter = ',' # true csv
+
+            def read(self):
+                print('reading ascii file: %s' %self.filename)
+
+                dt = dict(zip(self.usecols, self.dtype))
+
+                self.df = read_csv(self.filename,
+                                   delimiter=delimeter,
+                                   header=None,
+                                   usecols=self.usecols,
+                                   dtype=dt)
+
+                self.df.columns = self.names
+                return
+
         elif self.fileformat == 'binary':
-            print('reading binary file: %s' %self.filename)
-            dt = dict(zip(names, dtype))
-            self.df = DataFrame(np.fromfile(self.filename,
-                                            dtype=dt))
-            return
+            def read(self):
+                print('reading binary file: %s' %self.filename)
+
+                dt = np.dtype(zip(self.names, self.bin_dtypes))
+
+                d = np.fromfile(self.filename, dtype=dt, count=self.count)
+
+                data = {}
+                for i, name in enumerate(self.names):
+                    data[name] = np.ndarray([name] / float(self.bin_mults[name]),
+                                            dtype=self.dtypes[i],
+                                            cope=True)
+
+                self.df = DataFrame(data)
+
+                return
+
         elif self.fileformat == 'netcdf':
-            print('reading netcdf file: %s' %self.filename)
-            raise ValueError('Can only take ascii or binary VIC output at this time.')
+            def read(self):
+                print('reading netcdf file: %s' %self.filename)
+                raise ValueError('Can only take ascii or binary VIC output at this time.')
+                return
+
         else:
-            raise ValueError("Can only take ascii or binary VIC output at this time.")
+            raise ValueError("Can only take csv, ascii or binary VIC output at this time.")
 
     def __str__(self):
         return "Point(%s,%s,%s,%s)" % (self.lat, self.lon, self.y, self.x)
@@ -122,6 +149,37 @@ class Plist(list):
     def set_fileformat(self, fileformat):
         for p in self:
             p.fileformat = fileformat
+            p.set_read()
+        return
+
+    def set_count(count):
+        for p in self:
+            p.count = count
+        return
+
+    def set_names(names):
+        for p in self:
+            p.names = names
+        return
+
+    def set_use_cols(use_cols):
+        for p in self:
+            p.use_cols = use_cols
+        return
+
+    def set_dtypes(dtypes):
+        for p in self:
+            p.dtypes = dtypes
+        return
+
+    def set_bin_dtypes(bin_dtypes):
+        for p in self:
+            p.bin_dtypes = bin_dtypes
+        return
+
+    def set_bin_mults(bin_mults):
+        for p in self:
+            p.bin_mults = bin_mults
         return
 # -------------------------------------------------------------------- #
 
@@ -394,7 +452,9 @@ def main():
             domain_dict = config_dict.pop('DOMAIN')
         else:
             domain_dict = None
-        fields = config_dict
+
+        # set aside fields dict (sort by column)
+        fields = OrderedDict(sorted(config_dict.iteritems(), key=lambda x: x[1]['column']))
 
         vic2nc(options, global_atts, domain_dict, fields, big_memory)
         # ------------------------------------------------------------ #
@@ -445,7 +505,6 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # Make pairs (i.e. find inds)
     files = glob(options['input_files'])
     points = get_file_coords(files)
-    points.set_fileformat(options['input_file_format'])
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -467,9 +526,23 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # Read first file and get a list of dates
-    vic_datelist = get_dates(files[0])
-    vic_ordtime = date2num(vic_datelist, TIMEUNITS, calendar=options['calendar'])
+    # Get timestamps
+    if options['input_file_format'].lower() == 'ascii':
+        vic_datelist = get_dates(files[0])
+        vic_ordtime = date2num(vic_datelist, TIMEUNITS, calendar=options['calendar'])
+
+    elif options['input_file_format'].lower() == 'binary':
+        vic_datelist, vic_ordtime = make_dates(options['bin_start_date'],
+                                               options['bin_end_date'],
+                                               options['bin_dt_sec'],
+                                               calendar=options['calendar'])
+
+    else:
+        raise ValueError('Unknown input file format: {}.  \
+            Valid options are ascii and binary'.format(options['input_file_format']))
+
+    time_length = len(vic_ordtime)
+    points.set_fileformat(options['input_file_format'], time_length)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -590,6 +663,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     names = []
     usecols = []
     dtypes = []
+    bin_dtypes = []
+    bin_mults = []
 
     if options['precision'] == 'double':
         prec = NC_DOUBLE
@@ -597,7 +672,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         prec = NC_FLOAT
 
     for name, field in fields.iteritems():
-        print name, field
+
         if type(field['column']) == list:
             # multiple levels
             for i, col in enumerate(field['column']):
@@ -610,14 +685,53 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
                     dtypes.extend([field['type']] * len(field['column']))
             else:
                 dtypes.append([prec] * len(field['column']))
+
+            if options['input_file_format'].lower() == 'binary':
+                if 'bin_dtype' in field:
+                    if type(field['bin_dtype']) == list:
+                        bin_dtypes.extend(field['bin_dtype'])
+                    else:
+                        bin_dtypes.extend([field['bin_dtype']] * len(field['column']))
+                else:
+                    raise ValueError('bin_dtype not in field: {}'.format(name))
+
+                if 'bin_mult' in field:
+                    if type(field['bin_mult']) == list:
+                        bin_mults.extend(field['bin_mult'])
+                    else:
+                        bin_mults.extend([field['bin_mult']] * len(field['column']))
+                else:
+                    bin_mults.extend([1.0] * len(field['column']))
         else:
             # no levels
             names.append(name)
             usecols.append(field['column'])
+
             if 'type' in field:
                 dtypes.append(field['type'])
             else:
                 dtypes.append(prec)
+
+            if options['input_file_format'].lower() == 'binary':
+                if 'bin_dtype' in field:
+                    bin_dtypes.append(field['bin_dtype'])
+                else:
+                    raise ValueError('bin_dtype not in field: {}'.format(name))
+
+                if 'bin_mult' in field:
+                    bin_mults.append(field['bin_mult'])
+                else:
+                    bin_mults.append(1.0)
+
+    points.set_count(time_length)
+    points.set_names(names)
+    points.set_use_cols(use_cols)
+    points.set_dtypes(dtypes)
+
+    # set binary attributes
+    if options['input_file_format'].lower() == 'binary':
+        points.set_bin_dtypes(bin_dtypes)
+        points.set_bin_mults(bin_mults)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -625,7 +739,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         # run in big memory mode
         while points:
             point = points.pop()
-            point.read(names=names, usecols=usecols, dtype=dtypes)
+            point.read(names=names, usecols=usecols,
+                       dtype=dtypes)
 
             for num in xrange(num_segments):
                 segments[num].nc_add_data_big_memory(point)
@@ -644,7 +759,8 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         for chunk in point_chunks:
             data_points = {}
             for point in chunk:
-                point.read(names=names, usecols=usecols, dtypes=dtypes)
+                point.read(names=names, usecols=usecols,
+                           dtypes=dtypes)
                 data_points[point.filename] = point
 
             for segment in segments:
@@ -780,6 +896,30 @@ def get_dates(file):
     print('VIC enddate: %s' %datelist[-1])
 
     return datelist
+# -------------------------------------------------------------------- #
+
+# -------------------------------------------------------------------- #
+def make_dates(start, end, dt, calendar='standard'):
+    """
+    Return a list of datetime object from inputs of
+
+    start - python date string (i.e. 1989-01-01-00)
+    end - python date string (i.e. 1989-01-01-23)
+    dt - int or float timestep in seconds
+    """
+
+    start = map(int, start.split('-'))
+    end = map(int, end.split('-'))
+
+    start_ord = date2num(datetime(*start), TIMEUNITS, calendar=calendar)
+    end_ord = date2num(datetime(*end), TIMEUNITS, calendar=calendar)
+    step = dt/SECSPERDAY
+
+    ordlist = np.arange(start_ord, end_ord+step, step)
+
+    datelist = num2date(ordlist, TIMEUNITS, calendar=calendar)
+
+    return datelist, ordlist
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
@@ -965,7 +1105,6 @@ def latlon2yx(plats, plons, glats, glons):
     dist, indexes = mytree.query(points, k=1)
     y, x = np.unravel_index(np.array(indexes), glons.shape)
     return y, x
-
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #

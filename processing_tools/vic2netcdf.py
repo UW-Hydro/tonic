@@ -69,53 +69,46 @@ class Point(object):
         self.y = y
         self.filename = filename
 
-    def set_read():
-        if self.fileformat in ['ascii', 'csv']:
-            if self.fileformat == 'ascii':
-                delimeter = '\t' # VIC ascii files are tab seperated
-            else:
-                delimeter = ',' # true csv
+    def read_ascii(self):
 
-            def read(self):
-                print('reading ascii file: %s' %self.filename)
-
-                dt = dict(zip(self.usecols, self.dtype))
-
-                self.df = read_csv(self.filename,
-                                   delimiter=delimeter,
-                                   header=None,
-                                   usecols=self.usecols,
-                                   dtype=dt)
-
-                self.df.columns = self.names
-                return
-
-        elif self.fileformat == 'binary':
-            def read(self):
-                print('reading binary file: %s' %self.filename)
-
-                dt = np.dtype(zip(self.names, self.bin_dtypes))
-
-                d = np.fromfile(self.filename, dtype=dt, count=self.count)
-
-                data = {}
-                for i, name in enumerate(self.names):
-                    data[name] = np.ndarray([name] / float(self.bin_mults[name]),
-                                            dtype=self.dtypes[i],
-                                            cope=True)
-
-                self.df = DataFrame(data)
-
-                return
-
-        elif self.fileformat == 'netcdf':
-            def read(self):
-                print('reading netcdf file: %s' %self.filename)
-                raise ValueError('Can only take ascii or binary VIC output at this time.')
-                return
-
+        if self.fileformat == 'ascii':
+            delimeter = '\t' # VIC ascii files are tab seperated
         else:
-            raise ValueError("Can only take csv, ascii or binary VIC output at this time.")
+            delimeter = ',' # true csv
+
+        print('reading ascii file: %s' %self.filename)
+
+        dt = dict(zip(self.usecols, self.dtype))
+
+        self.df = read_csv(self.filename,
+                           delimiter=delimeter,
+                           header=None,
+                           usecols=self.usecols,
+                           dtype=dt)
+
+        self.df.columns = self.names
+
+        return
+
+    def read_binary(self):
+        print('reading binary file: %s' %self.filename)
+
+        dt = np.dtype(zip(self.names, self.bin_dtypes))
+
+        d = np.fromfile(self.filename, dtype=dt)
+
+        data = {}
+        for i, name in enumerate(self.names):
+	    data[name] = np.array(d[name], dtype=self.dtypes[i], copy=True) / float(self.bin_mults[i])
+
+        self.df = DataFrame(data)
+
+        return
+
+    def read_netcdf(self):
+        print('reading netcdf file: %s' %self.filename)
+        raise ValueError('Can only take ascii or binary VIC output at this time.')
+        return
 
     def __str__(self):
         return "Point(%s,%s,%s,%s)" % (self.lat, self.lon, self.y, self.x)
@@ -149,35 +142,35 @@ class Plist(list):
     def set_fileformat(self, fileformat):
         for p in self:
             p.fileformat = fileformat
-            p.set_read()
+	    if fileformat in ['ascii', 'csv']:
+		p.read = p.read_ascii
+	    elif fileformat == 'binary':
+		p.read = p.read_binary
+	    else:
+		raise ValueError('Unknown file format: {}'.format(fileformat))
         return
 
-    def set_count(count):
-        for p in self:
-            p.count = count
-        return
-
-    def set_names(names):
+    def set_names(self, names):
         for p in self:
             p.names = names
         return
 
-    def set_use_cols(use_cols):
+    def set_use_cols(self, use_cols):
         for p in self:
             p.use_cols = use_cols
         return
 
-    def set_dtypes(dtypes):
+    def set_dtypes(self, dtypes):
         for p in self:
             p.dtypes = dtypes
         return
 
-    def set_bin_dtypes(bin_dtypes):
+    def set_bin_dtypes(self, bin_dtypes):
         for p in self:
             p.bin_dtypes = bin_dtypes
         return
 
-    def set_bin_mults(bin_mults):
+    def set_bin_mults(self, bin_mults):
         for p in self:
             p.bin_mults = bin_mults
         return
@@ -540,9 +533,6 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     else:
         raise ValueError('Unknown input file format: {}.  \
             Valid options are ascii and binary'.format(options['input_file_format']))
-
-    time_length = len(vic_ordtime)
-    points.set_fileformat(options['input_file_format'], time_length)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -628,7 +618,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
 
         # Get segment inds
         i0 = bisect_left(vic_datelist, t0)
-        i1 = bisect_right(vic_datelist, t1)
+        i1 = bisect_left(vic_datelist, t1)
 
         # Make segment filename (with path)
         if options['time_segment'] == 'day':
@@ -723,9 +713,9 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
                 else:
                     bin_mults.append(1.0)
 
-    points.set_count(time_length)
+    points.set_fileformat(options['input_file_format'])
     points.set_names(names)
-    points.set_use_cols(use_cols)
+    points.set_use_cols(usecols)
     points.set_dtypes(dtypes)
 
     # set binary attributes
@@ -739,8 +729,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         # run in big memory mode
         while points:
             point = points.pop()
-            point.read(names=names, usecols=usecols,
-                       dtype=dtypes)
+            point.read()
 
             for num in xrange(num_segments):
                 segments[num].nc_add_data_big_memory(point)
@@ -759,8 +748,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         for chunk in point_chunks:
             data_points = {}
             for point in chunk:
-                point.read(names=names, usecols=usecols,
-                           dtypes=dtypes)
+                point.read()
                 data_points[point.filename] = point
 
             for segment in segments:
@@ -913,7 +901,7 @@ def make_dates(start, end, dt, calendar='standard'):
 
     start_ord = date2num(datetime(*start), TIMEUNITS, calendar=calendar)
     end_ord = date2num(datetime(*end), TIMEUNITS, calendar=calendar)
-    step = dt/SECSPERDAY
+    step = float(dt)/SECSPERDAY
 
     ordlist = np.arange(start_ord, end_ord+step, step)
 

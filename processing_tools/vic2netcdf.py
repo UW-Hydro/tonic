@@ -792,21 +792,13 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
             point = points.popleft()
             point.read()
 
-            for num in xrange(num_segments):
-                segments[num].nc_add_data_big_memory(point)
+            for segment in segments:
+                segment.nc_add_data_big_memory(point)
 
-        for num in xrange(num_segments):
-            segments[num].nc_write_data_big_memory()
+        for segment in segments:
+            segment.nc_write_data_big_memory()
 
     else:
-        # ------------------------------------------------------------ #
-        # Chunk the input files
-        # print('chunking...')
-        # point_chunks = partition(points, int(options['chunksize']))
-        # del points
-        # numchunks = len(point_chunks)
-        # ------------------------------------------------------------ #
-
         # ------------------------------------------------------------ #
         # Open VIC files and put data into netcdfs
         # i = 0
@@ -838,21 +830,6 @@ def usage():
     print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000)
     print(resource.getrusage(resource.RUSAGE_SELF))
     return
-
-
-def partition(olst, n):
-    chunksize = len(olst) / float(n)
-    return deque([copy.deepcopy(olst)[int(round(chunksize * i)):
-                 int(round(chunksize * (i + 1)))] for i in xrange(n)])
-
-
-# -------------------------------------------------------------------- #
-# Generator to chunk points list
-def chunks(l, n):
-    """ Yield successive n-sized chunks from l."""
-    for i in xrange(0, len(l), n):
-        yield l[i:i+n]
-# -------------------------------------------------------------------- #
 
 
 def read_config(config_file):

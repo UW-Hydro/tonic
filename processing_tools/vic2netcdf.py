@@ -84,8 +84,8 @@ class Point(object):
         self.df = read_csv(self.filename,
                            delimiter=delimeter,
                            header=None,
-                           usecols=self.usecols,
-                           dtype=dt)
+                           usecols=self.usecols)
+                           # dtype=dt)
 
         self.df.columns = self.names
 

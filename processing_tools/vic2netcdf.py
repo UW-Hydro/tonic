@@ -70,33 +70,29 @@ class Point(object):
         self.y = y
         self.filename = filename
 
-    def _read_ascii(self):
+    def open(self):
+        print('opening file: {0}'.format(self.filename))
+        self.f = open(self.filename, self.open_mode)
 
-        if self.fileformat == 'ascii':
-            delimeter = '\t'  # VIC ascii files are tab seperated
-        else:
-            delimeter = ','  # true csv
+    def close(self):
+        print('closing file: {0}'.format(self.filename))
+        self.f.close()
 
-        print('reading ascii file: {0}'.format(self.filename))
+    def _read_ascii(self, count=None):
 
-        dt = dict(zip(self.usecols, self.dtypes))
-
-        self.df = read_csv(self.filename,
-                           delimiter=delimeter,
+        self.df = read_csv(self.f,
+                           delimiter=self.delimeter,
                            header=None,
-                           usecols=self.usecols)
-                           # dtype=dt)
+                           usecols=self.usecols,
+                           nrows=count)
 
         self.df.columns = self.names
 
         return
 
-    def _read_binary(self):
-        print('reading binary file: {0}'.format(self.filename))
+    def _read_binary(self, count=-1):
 
-        dt = np.dtype(zip(self.names, self.bin_dtypes))
-
-        d = np.fromfile(self.filename, dtype=dt)
+        d = np.fromfile(self.f, dtype=self.dt, count=count)
 
         data = {}
         for i, name in enumerate(self.names):
@@ -107,7 +103,7 @@ class Point(object):
 
         return
 
-    def read_netcdf(self):
+    def _read_netcdf(self):
         raise ValueError('Can only take ascii or binary VIC \
                          output at this time.')
         print('reading netcdf file: {0}'.format(self.filename))
@@ -155,18 +151,27 @@ class Plist(deque):
     def get_xs(self):
         return np.array([p.x for p in self])
 
-    def get_data(self, name, i0, i1):
-        return np.array([p.df[name].values[i0:i1] for p in self])
+    def get_data(self, name, data_slice):
+        return np.array([p.df[name].values[data_slice] for p in self])
 
     def set_fileformat(self, fileformat):
+        """sets and assigns fileformat specific attributes and methods"""
+
+        if fileformat == 'ascii':
+            delimeter = '\t'  # VIC ascii files are tab seperated
+        else:
+            delimeter = ','  # true csv
+
         for p in self:
-
             p.fileformat = fileformat
-
             if fileformat in ['ascii', 'csv']:
+                p.open_mode = 'r'
+                p.delimeter = delimeter
                 p.read = p._read_ascii
             elif fileformat == 'binary':
+                p.open_mode = 'rb'
                 p.read = p._read_binary
+                p.dt = np.dtype(zip(p.names, p.bin_dtypes))
             else:
                 raise ValueError('Unknown file format: {0}'.format(fileformat))
         return
@@ -199,16 +204,23 @@ class Plist(deque):
 
 
 class Segment(object):
-    def __init__(self, num, i0, i1, nc_format, filename, big_memory=False):
+    def __init__(self, num, i0, i1, nc_format, filename,
+                 memory_mode='original'):
         '''Class used for holding segment information '''
         self.num = num
         self.i0 = i0
         self.i1 = i1
         self.filename = filename
         self.fields = {}
-        self.big_memory = big_memory
+        self.memory_mode = memory_mode
 
         self.nc_write(nc_format)
+
+        # Set slice
+        if memory_mode == 'original':
+            self.slice = slice(None)
+        else:
+            self.slice = slice(i0, i1)
 
     def nc_globals(self,
                    title='VIC netCDF file',
@@ -283,6 +295,7 @@ End Index: {3}
         time[:] = times[self.i0:self.i1]
         time.units = TIMEUNITS
         time.calendar = calendar
+        self.count = len(time)
 
     def nc_domain(self, domain):
         """ define the coordinate dimension (and write data) """
@@ -337,9 +350,6 @@ End Index: {3}
         self.three_dim_vars = []
         self.four_dim_vars = []
 
-        if self.big_memory:
-            self.data = {}
-
         for name, field in fields.iteritems():
             write_out_var = True
             if 'write_out_var' in field:
@@ -382,37 +392,39 @@ End Index: {3}
                 else:
                     raise ValueError('Field {0} missing units \
                                      attribute'.format(name))
-
-                # setup array for big_memory
-                if self.big_memory:
-                    self.data[name] = np.zeros(self.fields[name].shape,
-                                               dtype=prec) + fill_val
-
         return
 
-    def nc_add_data_big_memory(self, point):
+    def allocate(self):
+        self.data = {}
+        for name, field in self.fields.iteritems():
+            if hasattr(field, '_FillValue'):
+                self.data[name] = np.zeros_like(field) + field._FillValue
+            else:
+                self.data[name] = np.zeros_like(field)
+
+    def nc_add_data_to_array(self, point):
         for name in self.three_dim_vars:
-            self.data[name][:, point.y, point.x] = point.df[name].values[self.i0:self.i1]
+            self.data[name][:, point.y, point.x] = point.df[name].values[self.slice]
         for name in self.four_dim_vars:
             varshape = self.f.variables[name].shape[1]
             for i in xrange(varshape):
                 subname = name + str(i)
-                self.data[name][:, i, point.y, point.x] = point.df[subname].values[self.i0:self.i1]
+                self.data[name][:, i, point.y, point.x] = point.df[subname].values[self.slice]
 
     def nc_add_data_standard(self, points):
         ys = points.get_ys()
         xs = points.get_xs()
         for point in points:
             for name in self.three_dim_vars:
-                data = points.get_data(name, self.i0, self.i1)
+                data = points.get_data(name, self.slice)
                 self.f.variables[name][:, ys, xs] = data
             for name in self.four_dim_vars:
                 varshape = self.f.variables[name].shape[1]
                 for i in xrange(varshape):
                     subname = name + str(i)
-                    self.f.variables[name][:, i, ys, xs] = point.df[subname].values[self.i0:self.i1]
+                    self.f.variables[name][:, i, ys, xs] = point.df[subname].values[self.slice]
 
-    def nc_write_data_big_memory(self):
+    def nc_write_data_from_array(self):
         """ write completed data arrays to disk """
         for name in self.three_dim_vars:
             self.f.variables[name][:, :, :] = self.data[name]
@@ -473,7 +485,7 @@ def main():
 
     # ---------------------------------------------------------------- #
     # Read command Line
-    config_file, big_memory, create_batch, batch_dir = process_command_line()
+    config_file, create_batch, batch_dir = process_command_line()
     # ---------------------------------------------------------------- #
 
     if create_batch:
@@ -496,22 +508,21 @@ def main():
         fields = OrderedDict(sorted(config_dict.iteritems(),
                              key=lambda x: x[1]['column']))
 
-        vic2nc(options, global_atts, domain_dict, fields, big_memory)
+        vic2nc(options, global_atts, domain_dict, fields)
         # ------------------------------------------------------------ #
     return
 # -------------------------------------------------------------------- #
 
 
-def vic2nc(options, global_atts, domain_dict, fields, big_memory):
+def vic2nc(options, global_atts, domain_dict, fields):
     """ Convert ascii VIC files to netCDF format"""
 
     # determine run mode
-    if big_memory \
-        or not options['chunksize'] \
-            or options['chunksize'] in ['all', 'All', 'ALL']:
-        big_memory = True
+    if (options['memory_mode'] == 'standard') \
+            and (options['chunksize'] in ['all', 'All', 'ALL', 0]):
+        memory_mode = 'big_memory'
     else:
-        big_memory = False
+        memory_mode = options['memory_mode']
 
     print("\n-------------------------------")
     print("Configuration File Options")
@@ -527,11 +538,9 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     for pair in global_atts.iteritems():
         print("{0}: {1}".format(*pair))
     print("--------RUN MODE--------")
-    if big_memory:
-        print('Run Mode: big_memory')
-    else:
-        print('Run Mode: standard (chunking)...\
-              Chunksize={0}'.format(options['chunksize']))
+    print('Memory Mode: {0}'.format(memory_mode))
+    if memory_mode == 'standard':
+        print('Chunksize={0}'.format(options['chunksize']))
     print("---------------------------------\n")
     # ---------------------------------------------------------------- #
 
@@ -664,7 +673,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
 
     # ---------------------------------------------------------------- #
     # Setup Segments
-    segments = np.empty(num_segments, dtype=object)
+    segments = deque()
 
     for num in xrange(num_segments):
         # Segment time bounds
@@ -693,19 +702,20 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
         filename = path.join(options['out_directory'], filename)
 
         # Setup segment and initialize netcdf
-        segments[num] = Segment(num, i0, i1, options['out_file_format'],
-                                filename, big_memory=big_memory)
-        segments[num].nc_globals(**global_atts)
-        segments[num].nc_time(vic_ordtime, options['calendar'])
-        segments[num].nc_dimensions(snow_bands=options['snow_bands'],
-                                    veg_tiles=options['veg_tiles'],
-                                    soil_layers=options['soil_layers'])
+        segment = Segment(num, i0, i1, options['out_file_format'],
+                          filename, memory_mode=memory_mode)
+        segment.nc_globals(**global_atts)
+        segment.nc_time(vic_ordtime, options['calendar'])
+        segment.nc_dimensions(snow_bands=options['snow_bands'],
+                              veg_tiles=options['veg_tiles'],
+                              soil_layers=options['soil_layers'])
 
-        segments[num].nc_domain(domain)
-        segments[num].nc_fields(fields,
-                                domain_dict['y_x_dims'], options['precision'])
+        segment.nc_domain(domain)
+        segment.nc_fields(fields,
+                          domain_dict['y_x_dims'], options['precision'])
 
-        print(repr(segments[num]))
+        print(repr(segment))
+        segments.append(segment)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -774,62 +784,86 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
                     bin_mults.append(1.0)
 
     print('setting point attributes (fileformat, names, usecols, and dtypes)')
-    points.set_fileformat(options['input_file_format'])
     points.set_names(names)
     points.set_usecols(usecols)
     points.set_dtypes(dtypes)
-    print('done')
     # set binary attributes
     if options['input_file_format'].lower() == 'binary':
         points.set_bin_dtypes(bin_dtypes)
         points.set_bin_mults(bin_mults)
+    points.set_fileformat(options['input_file_format'])
+    print('done')
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    if big_memory:
+    if memory_mode == 'big_memory':
+        # ------------------------------------------------------------ #
         # run in big memory mode
+        for i, segment in enumerate(segments):
+            segments[i].allocate()
+
         while points:
             point = points.popleft()
+            point.open()
             point.read()
+            point.close()
 
             for segment in segments:
-                segment.nc_add_data_big_memory(point)
+                segment.nc_add_data_to_array(point)
 
         for segment in segments:
-            segment.nc_write_data_big_memory()
+            segment.nc_write_data_from_array()
+            segment.nc_close()
+        # ------------------------------------------------------------ #
 
-    else:
+    elif memory_mode == 'standard':
         # ------------------------------------------------------------ #
         # Open VIC files and put data into netcdfs
-        # i = 0
-        chunk = Plist()
-        while points:  # for i, chunk in enumerate(point_chunks):
-            # i += 1
-            point = points.popleft()
-            point.read()
-            chunk.append(point)
 
+        chunk = Plist()
+        while points:
+            point = points.popleft()
+            point.open()
+            point.read()
+            point.close()
+            chunk.append(point)
             if len(chunk) > int(options['chunksize']) or len(points) == 0:
                 for segment in segments:
                     segment.nc_add_data_standard(chunk)
                 chunk = Plist()
+            del point
         # ------------------------------------------------------------ #
 
-    # ---------------------------------------------------------------- #
-    # Close the netcdf files
-    for segment in segments:
-        segment.nc_close()
-    # ---------------------------------------------------------------- #
+        # ------------------------------------------------------------ #
+        # Close the netcdf files
+        for segment in segments:
+            segment.nc_close()
+        # ------------------------------------------------------------ #
+    elif memory_mode == 'original':
+        # ------------------------------------------------------------ #
+        # Run in original memory mode (a.k.a. vic2nc.c mode)
+        # Open all files
+        for point in points:
+            point.open()
+
+        while segments:
+            segment = segments.popleft()
+            segment.allocate()
+            count = segment.count
+
+            for point in points:
+                point.read(count=count)
+                segment.nc_add_data_to_array(point)
+
+            segment.nc_write_data_from_array()
+            segment.nc_close()
+
+        for point in points:
+            point.close()
+        # ------------------------------------------------------------ #
+
     return
 # -------------------------------------------------------------------- #
-
-
-def usage():
-    import resource
-    print(datetime.now())
-    print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1000)
-    print(resource.getrusage(resource.RUSAGE_SELF))
-    return
 
 
 def read_config(config_file):
@@ -890,15 +924,6 @@ def config_type(value):
         except:
             return val_list
 # -------------------------------------------------------------------- #
-
-
-def flatten(foo):
-    for x in foo:
-        if hasattr(x, '__iter__'):
-            for y in flatten(x):
-                yield y
-        else:
-            yield x
 
 
 def get_file_coords(files):
@@ -1197,8 +1222,8 @@ def calc_grid(lats, lons, decimals=4):
                                      'comment': '0 indicates grid cell is not \
                                      active'})
 
-    print('Created a target grid based on the lats and lon in the \
-          input file names')
+    print('Created a target grid based on the lats and lons in the '
+          'input file names')
     print('Grid Size: {}'.format(mask.shape))
 
     return target_grid
@@ -1214,9 +1239,6 @@ def process_command_line():
                             netCDF format')
     parser.add_argument("config_file", type=str,
                         help="Input configuration file")
-    parser.add_argument("--big_memory", action='store_true',
-                        help="Operate in high memory mode (all data will be \
-                              stored in memory until write time)")
     parser.add_argument("--create_batch", type=str,
                         choices=['days', 'months', 'years', 'variables'],
                         default=False, help="Create a batch of config files")
@@ -1232,7 +1254,7 @@ def process_command_line():
         raise IOError('Configuration File: {0} is not a valid \
                       file'.format(args.config_file))
 
-    return args.config_file, args.big_memory, args.create_batch, args.batch_dir
+    return args.config_file, args.create_batch, args.batch_dir
 # -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #

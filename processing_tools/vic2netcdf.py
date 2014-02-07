@@ -79,7 +79,7 @@ class Point(object):
 
         print('reading ascii file: {0}'.format(self.filename))
 
-        dt = dict(zip(self.usecols, self.dtype))
+        dt = dict(zip(self.usecols, self.dtypes))
 
         self.df = read_csv(self.filename,
                            delimiter=delimeter,
@@ -176,9 +176,9 @@ class Plist(deque):
             p.names = names
         return
 
-    def set_use_cols(self, use_cols):
+    def set_usecols(self, usecols):
         for p in self:
-            p.use_cols = use_cols
+            p.usecols = usecols
         return
 
     def set_dtypes(self, dtypes):
@@ -776,7 +776,7 @@ def vic2nc(options, global_atts, domain_dict, fields, big_memory):
     print('setting point attributes (fileformat, names, usecols, and dtypes)')
     points.set_fileformat(options['input_file_format'])
     points.set_names(names)
-    points.set_use_cols(usecols)
+    points.set_usecols(usecols)
     points.set_dtypes(dtypes)
     print('done')
     # set binary attributes

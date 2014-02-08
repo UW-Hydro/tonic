@@ -11,11 +11,12 @@ from scipy.spatial import cKDTree
 
 FILL_VALUE = -9999
 
+
 # -------------------------------------------------------------------- #
-#
 def main():
 
-    nc_params, soil_file, UL, LR, outfiles, snow_file, veg_file, project, NIJSSEN2ARNO = process_command_line()
+    nc_params, soil_file, UL, LR, outfiles, snow_file, \
+        veg_file, project, NIJSSEN2ARNO = process_command_line()
 
     subset(nc_params, UL=UL, LR=LR, outfiles=outfiles,
            soil_file=soil_file, snow_file=snow_file,
@@ -25,8 +26,8 @@ def main():
     return
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def subset(paramNC, UL=False, LR=False, outfiles=1,
            soil_file=False, snow_file=False,
            veg_file=False, project=None,
@@ -39,9 +40,9 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
         data = NIJSSEN2001_to_ARNO.convert(data)
 
     if project:
-        print('Project Configuration %s' %project)
+        print('Project Configuration {0}'.format(project))
         if project == 'RASM':
-            outfiles=1
+            outfiles = 1
             cells, yinds, xinds = find_gridcells(data['mask'])
             rasm_soil(data, soil_file)
         else:
@@ -54,9 +55,9 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
     if veg_file:
         veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True)
 
-
     if (UL and LR):
-        inds = (yinds<UL[0]) & (yinds>LR[0]) & (xinds<LR[1]) & (xinds>UL[1])
+        inds = (yinds < UL[0]) & (yinds > LR[0]) & (xinds < LR[1]) \
+            & (xinds > UL[1])
         yinds = yinds[inds]
         xinds = xinds[inds]
 
@@ -65,29 +66,31 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
     for i in xrange(outfiles):
         start = i*filesize
         end = i*filesize+filesize
-        if end>cells:
+        if end > cells:
             end = cells
-        if outfiles>1:
-            out_file = '{}_{}.txt'.format(soil_file, str(i).zfill(len(str(outfiles))))
+        if outfiles > 1:
+            out_file = '{0}_{1}.txt'.format(soil_file,
+                                            str(i).zfill(len(str(outfiles))))
         else:
             out_file = soil_file
         soil(data, xinds[start:end], yinds[start:end], out_file)
-        print('finished {}'.format(out_file))
+        print('finished {0}'.format(out_file))
     return
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def rasm_soil(data, soil_file):
     """Write VIC formatted soil parameter file"""
 
     message = """
-    *** ---------------------------------------------------------------------- ***
-    Notes about RASM soil parameter file generations:
-     - To fill in missing grid cells 'mask' variable must be the same as the domain file mask
-     - Inactive grid cells will have a dummy line printed for all variables except the lons/lats
-     - Any grid cells with nans will be copied from the previous line without nans or FILL_VALUEs
-    *** ---------------------------------------------------------------------- ***\n"""
+*** ---------------------------------------------------------------------- ***
+Notes about RASM soil parameter file generations:
+ - To fill in missing grid cells 'mask' variable must be the same as the domain file mask
+ - Inactive grid cells will have a dummy line printed for all variables except the lons/lats
+ - Any grid cells with nans will be copied from the previous line without nans or FILL_VALUEs
+*** --------------------------------------------------------------------- ***\n
+    """
 
     print(message)
 
@@ -97,7 +100,8 @@ def rasm_soil(data, soil_file):
 
     numcells = data['mask'].size
 
-    arrayshape = (numcells, 2+np.max([np.max(c.soil_param[var]) for var in c.soil_param]))
+    arrayshape = (numcells, 2+np.max([np.max(c.soil_param[var])
+                                      for var in c.soil_param]))
     soil_params = np.empty(arrayshape)
     dtypes = ['%1i']*arrayshape[1]
     # ---------------------------------------------------------------- #
@@ -120,22 +124,27 @@ def rasm_soil(data, soil_file):
     # # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # find nearest real grid cell for all grid cells where frozen soil mask is active
-    # This is needed because the RASM mask is often different than existing datasets
-    print('Finding/filling nearest neighbors for all variables based on fs_active mask')
+    # find nearest real grid cell for all grid cells where frozen soil mask is
+    # active
+    # This is needed because the RASM mask is often different than existing
+    # datasets
+    print('Finding/filling nearest neighbors for all variables based on '
+          'fs_active mask')
 
     # real mask (from input dataset)
     ry, rx = np.nonzero(data['fs_active'])
 
-    # fill mask (we will fill all of these grid cells with their nearest real value)
+    # fill mask (we will fill all of these grid cells with their nearest real
+    # value)
     my_mask = np.zeros(data['fs_active'].shape, dtype=int)
     my_mask[ry, rx] = 1
 
-    fy, fx = np.nonzero(my_mask==0)
+    fy, fx = np.nonzero(my_mask == 0)
 
     # Find nearest real grid cell
     combined = np.dstack(([data['yc'][ry, rx], data['xc'][ry, rx]]))[0]
-    points = list(np.vstack((data['yc'][fy, fx], data['xc'][fy, fx])).transpose())
+    points = list(np.vstack((data['yc'][fy, fx],
+                             data['xc'][fy, fx])).transpose())
     mytree = cKDTree(combined)
     dist, inds = mytree.query(points, k=1)
 
@@ -153,8 +162,8 @@ def rasm_soil(data, soil_file):
 
     # ---------------------------------------------------------------- #
     # This is the domain mask
-    yinds, xinds = np.nonzero(data['mask']==1)
-    ymask, xmask = np.nonzero(data['mask']==0)
+    yinds, xinds = np.nonzero(data['mask'] == 1)
+    ymask, xmask = np.nonzero(data['mask'] == 0)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -164,16 +173,18 @@ def rasm_soil(data, soil_file):
     # real mask (from input dataset)
     ry, rx = np.nonzero((data['avg_T'] > -50) & (data['avg_T'] < 99))
 
-    # fill mask (we will fill all of these grid cells with their nearest real value)
+    # fill mask (we will fill all of these grid cells with their nearest
+    # real value)
     my_mask = np.zeros(data['avg_T'].shape)
     my_mask[ry, rx] = 1
 
-    fy, fx = np.nonzero(my_mask==0)
+    fy, fx = np.nonzero(my_mask == 0)
 
     # Find nearest real grid cell
     if len(fy) > 0:
         combined = np.dstack(([data['yc'][ry, rx], data['xc'][ry, rx]]))[0]
-        points = list(np.vstack((data['yc'][fy, fx], data['xc'][fy, fx])).transpose())
+        points = list(np.vstack((data['yc'][fy, fx],
+                                 data['xc'][fy, fx])).transpose())
         mytree = cKDTree(combined)
         dist, inds = mytree.query(points, k=1)
 
@@ -182,7 +193,8 @@ def rasm_soil(data, soil_file):
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
-    # For rasm, all cols are shifted one to right to make room for nveg in col 0
+    # For rasm, all cols are shifted one to right to make room for nveg in
+    # col 0
     i = -1
     print_flag = 0
     for (y, x), maskval in np.ndenumerate(data['mask']):
@@ -203,16 +215,24 @@ def rasm_soil(data, soil_file):
                     for col in cols:
                         dtypes[col+1] = f.soil_param[var]
 
-                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean: {3:<09.3f}'.format(var, data[var][yinds, xinds].min(), data[var][yinds, xinds].max(), data[var][yinds, xinds].mean()))
+                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
+                          ' {3:<09.3f}'.format(var,
+                                               data[var][yinds, xinds].min(),
+                                               data[var][yinds, xinds].max(),
+                                               data[var][yinds, xinds].mean()))
 
                 soil_params[i, c.soil_param[var]+1] = data[var][y, x]
 
             elif data[var].ndim == 3:
-                if print_flag==1:
+                if print_flag == 1:
                     for col in cols:
                         dtypes[col+1] = f.soil_param[var]
 
-                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean: {3:<09.3f}'.format(var, data[var][:, yinds, xinds].min(), data[var][:, yinds, xinds].max(), data[var][:, yinds, xinds].mean()))
+                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
+                          ' {3:<09.3f}'.format(var,
+                                               data[var][:, yinds, xinds].min(),
+                                               data[var][:, yinds, xinds].max(),
+                                               data[var][:, yinds, xinds].mean()))
 
                 for j, col in enumerate(cols):
                     soil_params[i, col+1] = data[var][j, y, x]
@@ -232,8 +252,8 @@ def rasm_soil(data, soil_file):
 
     # ---------------------------------------------------------------- #
     # Set all grid cells to run
-    soil_params[:, 1] = 1 # run
-    soil_params[:, -1] = 1 # run with frozen soils on
+    soil_params[:, 1] = 1  # run
+    soil_params[:, -1] = 1  # run with frozen soils on
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -271,14 +291,15 @@ def rasm_soil(data, soil_file):
     return
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def soil(data, xinds, yinds, soil_file):
     """Write VIC formatted soil parameter file"""
     c = grid_params.cols(nlayers=3)
     f = grid_params.format(nlayers=3)
 
-    arrayshape = (len(xinds), 1+np.max([np.max(c.soil_param[var]) for var in c.soil_param]))
+    arrayshape = (len(xinds), 1+np.max([np.max(c.soil_param[var])
+                                        for var in c.soil_param]))
     soil_params = np.zeros(arrayshape)
     dtypes = [0]*arrayshape[1]
 
@@ -299,14 +320,14 @@ def soil(data, xinds, yinds, soil_file):
     return
 # -------------------------------------------------------------------- #
 
-# -------------------------------------------------------------------- #
-#
-def snow():
-    pass
-# -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
-#
+def snow():
+    raise
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
 def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
     """Write VIC formatted veg parameter file"""
 
@@ -317,14 +338,13 @@ def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
 
     f = open(veg_file, 'w')
 
-    for i in xrange(len(xinds)):
-        x,y = xinds[i], yinds[i]
-        gridcell = int(data['gridcell'][y,x])
-        Nveg = int(data['Nveg'][y,x])
+    for y, x in zip(yinds, xinds):
+        gridcell = int(data['gridcell'][y, x])
+        Nveg = int(data['Nveg'][y, x])
         Cv = data['Cv'][:, y, x]
         veg_class = np.nonzero(Cv)[0]
 
-        if not len(veg_class)==Nveg:
+        if not len(veg_class) == Nveg:
             count += 1
 
         line1 = str(gridcell)+' '+str(Nveg)+'\n'
@@ -352,25 +372,25 @@ def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
     return
 # -------------------------------------------------------------------- #
 
-# -------------------------------------------------------------------- #
-#
-def veg_lib():
-    pass
-# -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
-#
+def veg_lib():
+    raise
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
 def find_gridcells(mask):
     """ Find number of grid cells in mask"""
     cells = np.sum(mask)
 
-    xinds, yinds = np.nonzero(mask>0)
+    xinds, yinds = np.nonzero(mask > 0)
 
     return cells, xinds, yinds
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def process_command_line():
     """
     Process command line arguments.
@@ -382,7 +402,8 @@ def process_command_line():
                         help="Input netCDF VIC parameter file")
     parser.add_argument("--soil_prefix",
                         type=int,
-                        help="Output soil param file prefix (default is same as nc_params)",
+                        help="Output soil param file prefix (default is same "
+                             "as nc_params)",
                         default=False)
     parser.add_argument("--veg_prefix",
                         type=int,
@@ -413,8 +434,8 @@ def process_command_line():
                         help='Use project configuration options',
                         choices=['RASM'])
     parser.add_argument("--NIJSSEN2ARNO",
-                        type=bool,
-                        help='Convert soil parameters from NIJSSEN2001 format to ARNO format',
+                        help='Convert soil parameters from NIJSSEN2001 format '
+                             'to ARNO format',
                         action='store_true')
 
     args = parser.parse_args()
@@ -425,8 +446,10 @@ def process_command_line():
         soil_prefix = os.path.splitext(args.nc_params)[0]+'_soil.txt'
 
     return args.nc_params, soil_prefix, args.upper_left_corner, \
-           args.lower_right_corner, args.outfiles, args.snow_file, args.veg_file, args.project, args.NIJSSEN2ARNO
+        args.lower_right_corner, args.outfiles, args.snow_file, \
+            args.veg_file, args.project, args.NIJSSEN2ARNO
 # -------------------------------------------------------------------- #
+
 
 # -------------------------------------------------------------------- #
 # Read netCDF Inputs
@@ -434,18 +457,20 @@ def read_netcdf(ncFile, var_names=[], coords=False, verbose=True):
     """
     Read data from input netCDF. Will read all variables if none provided.
     Will also return all variable attributes.
-    Both variables (data and attributes) are returned as dictionaries named by variable
+    Both variables (data and attributes) are returned as dictionaries named by
+    variable
     """
 
-    f = Dataset(ncFile,'r')
-    if var_names==[]:
+    f = Dataset(ncFile, 'r')
+    if var_names == []:
         var_names = f.variables.keys()
 
     if verbose:
-        print('Reading input data var_names:{} from file:'.format(var_names, ncFile))
+        print('Reading input data var_names:{0} from file: '
+              '{1}'.format(var_names, ncFile))
 
-    d={}
-    a={}
+    d = {}
+    a = {}
 
     if coords:
         if isinstance(var_names, str):

@@ -11,8 +11,8 @@ import argparse
 from netCDF4 import Dataset
 from ncparam2ascii import read_netcdf
 
+
 # -------------------------------------------------------------------- #
-#
 def main():
 
     nc_params = process_command_line()
@@ -51,8 +51,8 @@ def write(nc_params, data):
     return
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def convert(data):
     """Convert baseflow parameters to ARNO style"""
 
@@ -69,17 +69,17 @@ def convert(data):
     return data
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def calc_max_moist(depth, bulk_density, soil_density):
     """ calculate the maximum soil moisture of each layer """
     porosity = 1.0 - bulk_density / soil_density
-    max_moist = depth * porosity * 1000.;
+    max_moist = depth * porosity * 1000.
     return max_moist
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def calc_params(d1, d2, d3, d4, max_moist):
     """
     Convert parameters
@@ -106,14 +106,15 @@ def calc_params(d1, d2, d3, d4, max_moist):
     return Ds, Dsmax, Ws, c
 # -------------------------------------------------------------------- #
 
+
 # -------------------------------------------------------------------- #
-#
 def process_command_line():
     """
     Process command line arguments.
     """
-    parser = argparse.ArgumentParser(description='Simple script to convert between \
-                                     NIJSSEN2001 and ARNO baseflow parameters')
+    parser = argparse.ArgumentParser(description='Simple script to convert '
+                                                 'between NIJSSEN2001 and ARNO'
+                                                 ' baseflow parameters')
     parser.add_argument("nc_params",
                         type=str,
                         help="Input netCDF VIC parameter file")

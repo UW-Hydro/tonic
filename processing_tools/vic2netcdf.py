@@ -20,12 +20,11 @@ from collections import OrderedDict, deque
 from bisect import bisect_left
 from argparse import ArgumentParser
 from getpass import getuser
-from datetime import datetime
-from pandas import read_csv, DataFrame
+from datetime import datetime, timedelta
+from pandas import read_table, DataFrame
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
-import copy
 import socket
 import subprocess
 import dateutil.relativedelta as relativedelta
@@ -70,23 +69,22 @@ class Point(object):
         self.y = y
         self.filename = filename
 
-    def open(self):
-        print('opening file: {0}'.format(self.filename))
-        self.f = open(self.filename, self.open_mode)
+    def _open_binary(self):
+        print('opening binary file: {0}'.format(self.filename))
+        self.f = open(self.filename, 'rb')
 
-    def close(self):
-        print('closing file: {0}'.format(self.filename))
-        self.f.close()
+    def _open_ascii(self):
+        print('opening ascii file: {0}'.format(self.filename))
+        # return an iterator
+        self._reader = read_table(self.filename,
+                                  sep=self.delimeter,
+                                  header=None,
+                                  iterator=True,
+                                  usecols=self.usecols,
+                                  names=self.names)
 
     def _read_ascii(self, count=None):
-
-        self.df = read_csv(self.f,
-                           delimiter=self.delimeter,
-                           header=None,
-                           usecols=self.usecols,
-                           nrows=count)
-
-        self.df.columns = self.names
+        self.df = self._reader.get_chunk(count)
 
         return
 
@@ -108,6 +106,13 @@ class Point(object):
                          output at this time.')
         print('reading netcdf file: {0}'.format(self.filename))
         return
+
+    def close(self):
+        print('closing file: {0}'.format(self.filename))
+        try:
+            self.f.close()
+        except:
+            pass
 
     def __str__(self):
         return "Point({0},{1},{2},{3})".format(self.lat, self.lon,
@@ -158,18 +163,18 @@ class Plist(deque):
         """sets and assigns fileformat specific attributes and methods"""
 
         if fileformat == 'ascii':
-            delimeter = '\t'  # VIC ascii files are tab seperated
+            delimeter = r'\t'  # VIC ascii files are tab seperated
         else:
-            delimeter = ','  # true csv
+            delimeter = r','  # true csv
 
         for p in self:
             p.fileformat = fileformat
             if fileformat in ['ascii', 'csv']:
-                p.open_mode = 'r'
+                p.open = p._open_ascii
                 p.delimeter = delimeter
                 p.read = p._read_ascii
             elif fileformat == 'binary':
-                p.open_mode = 'rb'
+                p.open = p._open_binary
                 p.read = p._read_binary
                 p.dt = np.dtype(zip(p.names, p.bin_dtypes))
             else:
@@ -285,10 +290,13 @@ class Segment(object):
 Filename: {1}
 Start Index: {2}
 End Index: {3}
+Start Date: {4}
+End Date: {5}
 ------------------------------------------------------------------
-""".format(self.num, self.filename, self.i0, self.i1)
+""".format(self.num, self.filename, self.i0, self.i1, self.startdate,
+           self.enddate)
 
-    def nc_time(self, times, calendar):
+    def nc_time(self, t0, t1, times, calendar):
         """ define time dimension (and write data) """
         time = self.f.createDimension('time', len(times[self.i0:self.i1]))
         time = self.f.createVariable('time', 'f8', ('time', ))
@@ -296,6 +304,8 @@ End Index: {3}
         time.units = TIMEUNITS
         time.calendar = calendar
         self.count = len(time)
+        self.startdate = t0
+        self.enddate = t1
 
     def nc_domain(self, domain):
         """ define the coordinate dimension (and write data) """
@@ -529,7 +539,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
     print("-------------OPTIONS-------------")
     for pair in options.iteritems():
         print("{0}: {1}".format(*pair))
-    print('Fields {0}'.format(fields.keys()))
+    print('Fields: {0}'.format(", ".join(fields.keys())))
     if domain_dict:
         print("-------------DOMAIN--------------")
         for pair in domain_dict.iteritems():
@@ -614,6 +624,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
     else:
         end_date = vic_datelist[-1]
 
+
     # Ordinal Time
     start_ord = date2num(start_date, TIMEUNITS, calendar=options['calendar'])
     end_ord = date2num(end_date, TIMEUNITS, calendar=options['calendar'])
@@ -668,7 +679,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
 
     # Make sure the first and last dates are start/end_date
     segment_dates[0] = start_date
-    segment_dates[-1] = end_date
+    segment_dates[-1] = end_date + timedelta(minutes=1)
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -705,7 +716,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
         segment = Segment(num, i0, i1, options['out_file_format'],
                           filename, memory_mode=memory_mode)
         segment.nc_globals(**global_atts)
-        segment.nc_time(vic_ordtime, options['calendar'])
+        segment.nc_time(t0, t1, vic_ordtime, options['calendar'])
         segment.nc_dimensions(snow_bands=options['snow_bands'],
                               veg_tiles=options['veg_tiles'],
                               soil_layers=options['soil_layers'])
@@ -852,7 +863,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
             count = segment.count
 
             for point in points:
-                point.read(count=count)
+                point.read(count)
                 segment.nc_add_data_to_array(point)
 
             segment.nc_write_data_from_array()

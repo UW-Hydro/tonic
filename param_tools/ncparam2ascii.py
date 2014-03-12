@@ -52,8 +52,11 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
     else:
         cells, yinds, xinds = find_gridcells(data['mask'])
 
+    # write snow and veg files
     if veg_file:
         veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True)
+    if snow_file:
+        snow(data, xinds, yinds, snow_file)
 
     if (UL and LR):
         inds = (yinds < UL[0]) & (yinds > LR[0]) & (xinds < LR[1]) \
@@ -86,9 +89,12 @@ def rasm_soil(data, soil_file):
     message = """
 *** ---------------------------------------------------------------------- ***
 Notes about RASM soil parameter file generations:
- - To fill in missing grid cells 'mask' variable must be the same as the domain file mask
- - Inactive grid cells will have a dummy line printed for all variables except the lons/lats
- - Any grid cells with nans will be copied from the previous line without nans or FILL_VALUEs
+ - To fill in missing grid cells 'mask' variable must be the same as the
+   domain file mask.
+ - Inactive grid cells will have a dummy line printed for all variables except
+   the lons/lats.
+ - Any grid cells with nans will be copied from the previous line without nans
+   or FILL_VALUEs.
 *** --------------------------------------------------------------------- ***\n
     """
 
@@ -282,7 +288,7 @@ Notes about RASM soil parameter file generations:
     #                 break
     # # ---------------------------------------------------------------- #
 
-    print('writing soil parameter file: {}'.format(soil_file))
+    print('writing soil parameter file: {0}'.format(soil_file))
 
     np.savetxt(soil_file, soil_params, fmt=dtypes)
 
@@ -311,7 +317,7 @@ def soil(data, xinds, yinds, soil_file):
         for col in c.soil_param[var]:
             dtypes[col] = f.soil_param[var]
 
-    print('writing soil parameter file: {}'.format(soil_file))
+    print('writing soil parameter file: {0}'.format(soil_file))
 
     np.savetxt(soil_file, soil_params, fmt=dtypes)
 
@@ -322,8 +328,36 @@ def soil(data, xinds, yinds, soil_file):
 
 
 # -------------------------------------------------------------------- #
-def snow():
-    raise
+def snow(data, xinds, yinds, snow_file):
+    """Write VIC formatted snowband parameter file"""
+    try:
+        snow_bands = data['AreaFract'].shape[0]
+    except:
+        snow_bands = 5
+
+    c = grid_params.cols(snow_bands=snow_bands)
+    f = grid_params.format(snow_bands=snow_bands)
+
+    arrayshape = (len(xinds), 1+np.max([np.max(c.snow_param[var])
+                                        for var in c.snow_param]))
+    snow_params = np.zeros(arrayshape)
+    dtypes = [0]*arrayshape[1]
+
+    for var in c.snow_param:
+        if data[var].ndim == 2:
+            snow_params[:, c.snow_param[var]] = np.atleast_2d(data[var][yinds, xinds]).transpose()
+        elif data[var].ndim == 3:
+            snow_params[:, c.snow_param[var]] = np.atleast_2d(data[var][:, yinds, xinds]).transpose()
+        for col in c.snow_param[var]:
+            dtypes[col] = f.snow_param[var]
+
+    print('writing snow parameter file: {0}'.format(snow_file))
+    print(dtypes, snow_params.shape)
+    np.savetxt(snow_file, snow_params, fmt=dtypes)
+
+    print('done with soil file')
+
+    return
 # -------------------------------------------------------------------- #
 
 
@@ -331,7 +365,7 @@ def snow():
 def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
     """Write VIC formatted veg parameter file"""
 
-    print('writing veg parameter file: {}'.format(veg_file))
+    print('writing veg parameter file: {0}'.format(veg_file))
 
     # counter for bad grid cells
     count = 0
@@ -366,7 +400,7 @@ def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
                     f.write(' '.join(line3))
     f.close()
 
-    print('{} grid cells have unequal veg_classes'.format(count))
+    print('{0} grid cells have unequal veg_classes'.format(count))
     print('done with veg')
 
     return

@@ -78,7 +78,8 @@ class cols(object):
                                        ('annual_prec',np.array([11*nlayers+15])),
                                        ('resid_moist', np.arange(11*nlayers+16,
                                                                  12*nlayers+16)),
-                                       ('fs_active',  np.array([12*nlayers+16]))])
+                                       ('fs_active',  np.array([12*nlayers+16]))
+                                       ('gl_active',  np.array([12*nlayers+17]))])
 
         self.snow_param = OrderedDict([('cellnum', np.array([0])),
                                        ('AreaFract', np.arange(1,
@@ -136,7 +137,8 @@ class format(object):
                            'snow_rough': '%1.6f',
                            'annual_prec': '%1.6f',
                            'resid_moist': '%1.6f',
-                           'fs_active': '%1i'}
+                           'fs_active': '%1i',
+                           'gl_active': '%1i'}
 
         self.snow_param = {'cellnum': '%1i',
                            'AreaFract': '%1.6f',
@@ -219,9 +221,14 @@ class description(object):
                                           'moisture.',
                            'fs_active': 'If set to 1, then frozen soil '
                                         'algorithm is activated for the grid '
-                                        'cell. A 0 indicates that frozen soils'
-                                        ' are not computed even if soil '
-                                        'temperatures fall below 0C.'}
+                                        'cell. A 0 indicates that frozen '
+                                        'soils are not computed even if soil '
+                                        'temperatures fall below 0C.',
+                           'gl_active': 'If set to 1, then the glacier model '
+                                        'is activated for the grid cell. A 0 '
+                                        'indicates that glacier flow is not '
+                                        'simulated even if glacial ice  '
+                                        'becomes present'}
 
         self.snow_param = {'cellnum': 'Grid cell number (should match numbers '
                                       'assigned in soil parameter file)',

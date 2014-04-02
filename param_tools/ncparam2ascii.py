@@ -54,7 +54,8 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
 
     # write snow and veg files
     if veg_file:
-        veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True)
+        rootzones = data['root_depth'].shape[1]
+        veg(data, xinds, yinds, veg_file, rootzones=rootzones, GLOBAL_LAI=True)
     if snow_file:
         snow(data, xinds, yinds, snow_file)
 
@@ -75,9 +76,9 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
             out_file = '{0}_{1}.txt'.format(soil_file,
                                             str(i).zfill(len(str(outfiles))))
         else:
-            out_file = soil_file
+            out_file = '{0}.txt'.format(soil_file)
         soil(data, xinds[start:end], yinds[start:end], out_file)
-        print('finished {0}'.format(out_file))
+
     return
 # -------------------------------------------------------------------- #
 
@@ -317,11 +318,9 @@ def soil(data, xinds, yinds, soil_file):
         for col in c.soil_param[var]:
             dtypes[col] = f.soil_param[var]
 
-    print('writing soil parameter file: {0}'.format(soil_file))
-
     np.savetxt(soil_file, soil_params, fmt=dtypes)
 
-    print('done with soil file')
+    print('finished writing soil parameter file: {0}'.format(soil_file))
 
     return
 # -------------------------------------------------------------------- #
@@ -351,18 +350,16 @@ def snow(data, xinds, yinds, snow_file):
         for col in c.snow_param[var]:
             dtypes[col] = f.snow_param[var]
 
-    print('writing snow parameter file: {0}'.format(snow_file))
-    print(dtypes, snow_params.shape)
     np.savetxt(snow_file, snow_params, fmt=dtypes)
 
-    print('done with soil file')
+    print('finished writing snow parameter file: {0}'.format(snow_file))
 
     return
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
-def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
+def veg(data, xinds, yinds, veg_file, rootzones=3, GLOBAL_LAI=True):
     """Write VIC formatted veg parameter file"""
 
     print('writing veg parameter file: {0}'.format(veg_file))
@@ -401,7 +398,7 @@ def veg(data, xinds, yinds, veg_file, rootzones=2, GLOBAL_LAI=True):
     f.close()
 
     print('{0} grid cells have unequal veg_classes'.format(count))
-    print('done with veg')
+    print('finished writing veg parameter file: {0}'.format(veg_file))
 
     return
 # -------------------------------------------------------------------- #
@@ -435,7 +432,7 @@ def process_command_line():
                         type=str,
                         help="Input netCDF VIC parameter file")
     parser.add_argument("--soil_prefix",
-                        type=int,
+                        type=str,
                         help="Output soil param file prefix (default is same "
                              "as nc_params)",
                         default=False)
@@ -477,11 +474,11 @@ def process_command_line():
     if args.soil_prefix:
         soil_prefix = args.soil_prefix
     else:
-        soil_prefix = os.path.splitext(args.nc_params)[0]+'_soil.txt'
+        soil_prefix = os.path.splitext(args.nc_params)[0]
 
     return args.nc_params, soil_prefix, args.upper_left_corner, \
         args.lower_right_corner, args.outfiles, args.snow_file, \
-            args.veg_file, args.project, args.NIJSSEN2ARNO
+        args.veg_file, args.project, args.NIJSSEN2ARNO
 # -------------------------------------------------------------------- #
 
 

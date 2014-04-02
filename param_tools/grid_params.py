@@ -78,7 +78,7 @@ class cols(object):
                                        ('annual_prec',np.array([11*nlayers+15])),
                                        ('resid_moist', np.arange(11*nlayers+16,
                                                                  12*nlayers+16)),
-                                       ('fs_active',  np.array([12*nlayers+16]))
+                                       ('fs_active',  np.array([12*nlayers+16])),
                                        ('gl_active',  np.array([12*nlayers+17]))])
 
         self.snow_param = OrderedDict([('cellnum', np.array([0])),
@@ -111,8 +111,8 @@ class format(object):
     def __init__(self, nlayers=3, snow_bands=5):
         self.soil_param = {'run_cell': '%1i',
                            'gridcell': '%1i',
-                           'lats': '%1.4f',
-                           'lons': '%1.4f',
+                           'lats': '%1.5f',
+                           'lons': '%1.5f',
                            'infilt': '%1.6f',
                            'Ds': '%1.6f',
                            'Dsmax': '%1.6f',

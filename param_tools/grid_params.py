@@ -30,6 +30,9 @@ MAX_NC_CHARS = 256
 FILLVALUE_F = default_fillvals[NC_DOUBLE]
 FILLVALUE_I = default_fillvals[NC_INT]
 
+XVAR = 'lon'
+YVAR = 'lat'
+
 # -------------------------------------------------------------------- #
 
 
@@ -75,7 +78,8 @@ class cols(object):
                                        ('annual_prec',np.array([11*nlayers+15])),
                                        ('resid_moist', np.arange(11*nlayers+16,
                                                                  12*nlayers+16)),
-                                       ('fs_active',  np.array([12*nlayers+16]))])
+                                       ('fs_active',  np.array([12*nlayers+16])),
+                                       ('gl_active',  np.array([12*nlayers+17]))])
 
         self.snow_param = OrderedDict([('cellnum', np.array([0])),
                                        ('AreaFract', np.arange(1,
@@ -107,8 +111,8 @@ class format(object):
     def __init__(self, nlayers=3, snow_bands=5):
         self.soil_param = {'run_cell': '%1i',
                            'gridcell': '%1i',
-                           'lats': '%1.4f',
-                           'lons': '%1.4f',
+                           'lats': '%1.5f',
+                           'lons': '%1.5f',
                            'infilt': '%1.6f',
                            'Ds': '%1.6f',
                            'Dsmax': '%1.6f',
@@ -133,26 +137,27 @@ class format(object):
                            'snow_rough': '%1.6f',
                            'annual_prec': '%1.6f',
                            'resid_moist': '%1.6f',
-                           'fs_active': '%1i'}
+                           'fs_active': '%1i',
+                           'gl_active': '%1i'}
 
-        self.snow_param = {'cellnum': ['%1i'],
-                           'AreaFract': ['%1.6f']*snow_bands,
-                           'elevation': ['%1.6f']*snow_bands,
-                           'Pfactor': ['%1.6f']*snow_bands}
+        self.snow_param = {'cellnum': '%1i',
+                           'AreaFract': '%1.6f',
+                           'elevation': '%1.6f',
+                           'Pfactor': '%1.6f'}
 
-        self.veglib = {'Veg_class': ['%1i'],
-                       'lib_overstory': ['%1.6f'],
-                       'lib_rarc': ['%1.6f'],
-                       'lib_rmin': ['%1.6f'],
-                       'lib_LAI': ['%1.6f']*12,
-                       'lib_albedo': ['%1.6f']*12,
-                       'lib_rough': ['%1.6f']*12,
-                       'lib_displacement': ['%1.6f']*12,
-                       'lib_wind_h': ['%1.6f'],
-                       'lib_RGL': ['%1.6f'],
-                       'lib_rad_atten': ['%1.6f'],
-                       'lib_wind_atten': ['%1.6f'],
-                       'lib_trunk_ratio': ['%1.6f']}
+        self.veglib = {'Veg_class': '%1i',
+                       'lib_overstory': '%1.6f',
+                       'lib_rarc': '%1.6f',
+                       'lib_rmin': '%1.6f',
+                       'lib_LAI': '%1.6f',
+                       'lib_albedo': '%1.6f',
+                       'lib_rough': '%1.6f',
+                       'lib_displacement': '%1.6f',
+                       'lib_wind_h': '%1.6f',
+                       'lib_RGL': '%1.6f',
+                       'lib_rad_atten': '%1.6f',
+                       'lib_wind_atten': '%1.6f',
+                       'lib_trunk_ratio': '%1.6f'}
                         #'comment': [57]}
 # -------------------------------------------------------------------- #
 
@@ -216,9 +221,14 @@ class description(object):
                                           'moisture.',
                            'fs_active': 'If set to 1, then frozen soil '
                                         'algorithm is activated for the grid '
-                                        'cell. A 0 indicates that frozen soils'
-                                        ' are not computed even if soil '
-                                        'temperatures fall below 0C.'}
+                                        'cell. A 0 indicates that frozen '
+                                        'soils are not computed even if soil '
+                                        'temperatures fall below 0C.',
+                           'gl_active': 'If set to 1, then the glacier model '
+                                        'is activated for the grid cell. A 0 '
+                                        'indicates that glacier flow is not '
+                                        'simulated even if glacial ice  '
+                                        'becomes present'}
 
         self.snow_param = {'cellnum': 'Grid cell number (should match numbers '
                                       'assigned in soil parameter file)',
@@ -560,41 +570,41 @@ def calc_grid(lats, lons, decimals=4):
     if lats.min() < -55 and lats.max() > 70:
         # assume global grid
         print('assuming grid is meant to be global...')
-        target_grid['longitude'] = np.linspace(-180+lon_step[0]/2,
-                                               180-lon_step[0]/2,
-                                               360/lon_step[0])
-        target_grid['latitude'] = np.linspace(-90+lat_step[0]/2,
-                                              90-lat_step[0]/2,
-                                              180/lat_step[0])
+        target_grid[XVAR] = np.linspace(-180+lon_step[0]/2,
+                                        180-lon_step[0]/2,
+                                        360/lon_step[0])
+        target_grid[YVAR] = np.linspace(-90+lat_step[0]/2,
+                                        90-lat_step[0]/2,
+                                        180/lat_step[0])
     else:
-        target_grid['longitude'] = np.arange(lons.min(),
-                                             lons.max()+lon_step[0],
-                                             lon_step[0])
-        target_grid['latitude'] = np.arange(lats.min(),
-                                            lats.max()+lat_step[0],
-                                            lat_step[0])
+        target_grid[XVAR] = np.arange(lons.min(),
+                                      lons.max()+lon_step[0],
+                                      lon_step[0])
+        target_grid[YVAR] = np.arange(lats.min(),
+                                      lats.max()+lat_step[0],
+                                      lat_step[0])
 
-    y, x = latlon2yx(lats, lons, target_grid['latitude'],
-                     target_grid['longitude'])
+    y, x = latlon2yx(lats, lons, target_grid[YVAR],
+                     target_grid[XVAR])
 
-    mask = np.zeros((len(target_grid['latitude']),
-                     len(target_grid['longitude'])), dtype=int)
+    mask = np.zeros((len(target_grid[YVAR]),
+                     len(target_grid[XVAR])), dtype=int)
 
     mask[y, x] = 1
 
     target_grid['mask'] = mask
 
-    target_attrs = {'latitude': {'long_name': 'latitude coordinate',
-                                 'units': 'degrees_north'},
-                    'longitude': {'long_name': 'longitude coordinate',
-                                  'units': 'degrees_east'},
+    target_attrs = {YVAR: {'long_name': 'latitude coordinate',
+                           'units': 'degrees_north'},
+                    XVAR: {'long_name': 'longitude coordinate',
+                           'units': 'degrees_east'},
                     'mask': {'long_name': 'domain mask',
                              'comment': '0 indicates grid cell is not active'}
                     }
 
     print('Created a target grid based on the lats '
           'and lon in the soil parameter file')
-    print('Grid Size: {}'.format(mask.shape))
+    print('Grid Size: {0}'.format(mask.shape))
 
     return target_grid, target_attrs
 # -------------------------------------------------------------------- #
@@ -640,15 +650,11 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
     """
     print('gridding params now...')
 
-    try:
-        yi, xi = latlon2yx(soil_dict['lats'], soil_dict['lons'],
-                           target_grid['latitude'], target_grid['longitude'])
-    except:
-        yi, xi = latlon2yx(soil_dict['lats'], soil_dict['lons'],
-                           target_grid['yc'], target_grid['xc'])
+    yi, xi = latlon2yx(soil_dict['lats'], soil_dict['lons'],
+                       target_grid[YVAR], target_grid[XVAR])
 
     in_dicts = {'soil_dict': soil_dict}
-    out_dicts = {}
+    out_dicts = OrderedDict()
     if snow_dict:
         in_dicts['snow_dict'] = snow_dict
     else:
@@ -658,36 +664,51 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
     else:
         out_dicts['veg_dict'] = False
 
+    # get "unmasked" mask
+    mask = target_grid['mask'].data
+
     ysize, xsize = target_grid['mask'].shape
 
-    for i, name in enumerate(in_dicts):
-        out_dict = {}
+    ymask, xmask = np.nonzero(mask != 1)
+    print(ymask, xmask)
 
-        mydict = in_dicts[name]
+    for name, mydict in in_dicts.iteritems():
+        out_dict = OrderedDict()
+
         for var in mydict:
+            if mydict[var].dtype in [np.int, np.int64, np.int32]:
+                fill_val = FILLVALUE_I
+                dtype = np.int
+            else:
+                fill_val = FILLVALUE_F
+                dtype = np.float
+
             if mydict[var].ndim == 1:
-                out_dict[var] = np.ma.zeros((ysize, xsize)) + FILLVALUE_F
+                out_dict[var] = np.ma.zeros((ysize, xsize),
+                                            dtype=dtype) + fill_val
                 out_dict[var][yi, xi] = mydict[var]
-                out_dict[var] = np.ma.masked_values(out_dict[var], FILLVALUE_F)
+                out_dict[var][ymask, xmask] = fill_val
 
             elif mydict[var].ndim == 2:
                 steps = mydict[var].shape[1]
-                out_dict[var] = np.ma.zeros((steps, ysize, xsize)) \
-                    + FILLVALUE_F
+                out_dict[var] = np.ma.zeros((steps, ysize, xsize),
+                                            dtype=dtype) + fill_val
                 for i in xrange(steps):
                     out_dict[var][i, yi, xi] = mydict[var][:, i]
-                    out_dict[var][i, :, :] = np.ma.masked_values(out_dict[var][i, :, :],
-                                                                 FILLVALUE_F)
+                out_dict[var][:, ymask, xmask] = fill_val
 
             elif mydict[var].ndim == 3:
                 j = mydict[var].shape[1]
                 k = mydict[var].shape[2]
-                out_dict[var] = np.ma.zeros((j, k, ysize, xsize))+FILLVALUE_F
+                out_dict[var] = np.ma.zeros((j, k, ysize, xsize),
+                                            dtype=dtype) + fill_val
                 for jj in xrange(j):
                     for kk in xrange(k):
                         out_dict[var][jj, kk, yi, xi] = mydict[var][:, jj, kk]
-                        out_dict[var][jj, kk, :, :] = np.ma.masked_values(out_dict[var][jj, kk, :, :],
-                                                                          FILLVALUE_F)
+                for y, x in zip(ymask, xmask):
+                    out_dict[var][:, :, y, x] = fill_val
+
+            out_dict[var] = np.ma.masked_values(out_dict[var], fill_val)
 
         out_dicts[name] = out_dict
 
@@ -696,24 +717,25 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
 
 
 # -------------------------------------------------------------------- #
-def read_netcdf(nc_file, variables=[], coords=False, verbose=False):
+def read_netcdf(nc_file, variables=[], coords=False, verbose=True):
     """
     Read data from input netCDF. Will read all variables if none provided.
     Will also return all variable attributes.
     Both variables (data and attributes) are returned as dictionaries named by
     variable.
     """
-    if verbose:
-        print('Reading input data variables: '
-              ' {0} from file: {1)'.format(variables, nc_file))
 
     f = Dataset(nc_file, 'r')
 
     if variables == []:
         variables = f.variables.keys()
 
-    d = {}
-    a = {}
+    if verbose:
+        print('Reading input data variables: '
+              ' {0} from file: {1}'.format(variables, nc_file))
+
+    d = OrderedDict()
+    a = OrderedDict()
 
     if coords:
         if isinstance(variables, str):
@@ -747,11 +769,11 @@ def write_netcdf(myfile, target_attrs, target_grid,
     Reads attributes from params.py and from targetAtters dictionary read from
     grid_file
     """
-    f = Dataset(myfile, 'w', format='NETCDF4_CLASSIC')
+    f = Dataset(myfile, 'w', format='NETCDF4')
 
     # write attributes for netcdf
     f.description = 'VIC parameter file'
-    f.history = 'Created: {}\n'.format(tm.ctime(tm.time()))
+    f.history = 'Created: {0}\n'.format(tm.ctime(tm.time()))
     f.history += ' '.join(sys.argv) + '\n'
     f.source = sys.argv[0]  # prints the name of script used
     f.username = getuser()
@@ -762,34 +784,34 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
     # target grid
     # coordinates
-    if 'longitude' in target_grid:
-        x = f.createDimension('lon', len(target_grid['longitude']))
-        y = f.createDimension('lat', len(target_grid['latitude']))
+    if target_grid[XVAR].ndim == 1:
+        x = f.createDimension('lon', len(target_grid[XVAR]))
+        y = f.createDimension('lat', len(target_grid[YVAR]))
         dims2 = ('lat', 'lon', )
         coordinates = None
 
         v = f.createVariable('lat', NC_DOUBLE, ('lat',))
-        v[:] = target_grid['latitude']
+        v[:] = target_grid[YVAR]
         v.units = 'degrees_north'
         v.long_name = "latitude of grid cell center"
 
         v = f.createVariable('lon', NC_DOUBLE, ('lon',))
-        v[:] = target_grid['longitude']
+        v[:] = target_grid[XVAR]
         v.units = 'degrees_east'
         v.long_name = "longitude of grid cell center"
 
     else:
-        x = f.createDimension('nj', target_grid['xc'].shape[0])
-        y = f.createDimension('ni', target_grid['yc'].shape[1])
+        x = f.createDimension('nj', target_grid[XVAR].shape[0])
+        y = f.createDimension('ni', target_grid[YVAR].shape[1])
         dims2 = ('nj', 'ni', )
-        coordinates = "xc yc"
+        coordinates = "{0} {1}".format(XVAR, YVAR)
 
-        v = f.createVariable('yc', NC_DOUBLE, dims2)
-        v[:, :] = target_grid['yc']
+        v = f.createVariable(YVAR, NC_DOUBLE, dims2)
+        v[:, :] = target_grid[YVAR]
         v.units = 'degrees_north'
 
-        v = f.createVariable('xc', NC_DOUBLE, dims2)
-        v[:, :] = target_grid['xc']
+        v = f.createVariable(XVAR, NC_DOUBLE, dims2)
+        v[:, :] = target_grid[XVAR]
         v.units = 'degrees_east'
 
         # corners
@@ -824,7 +846,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
     # soil grid
     for var, data in soil_grid.iteritems():
-        print('writing var: {}'.format(var))
+        print('writing var: {0}'.format(var))
 
         if data.ndim == 1:
             v = f.createVariable(var, NC_DOUBLE, ('nlayer', ),
@@ -860,7 +882,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         snow_dims = ('snow_band', ) + dims2
 
         for var, data in snow_grid.iteritems():
-            print('writing var: {}'.format(var))
+            print('writing var: {0}'.format(var))
 
             if data.ndim == 2:
                 v = f.createVariable(var, NC_DOUBLE, dims2,
@@ -893,7 +915,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v.long_name = 'month of year'
 
         for var, data in veg_grid.iteritems():
-            print('writing var: {}'.format(var))
+            print('writing var: {0}'.format(var))
 
             if veg_grid[var].ndim == 2:
                 v = f.createVariable(var, NC_DOUBLE, dims2,
@@ -928,7 +950,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                 v.coordinates = coordinates
 
         if veglib_dict:
-            print('writing var: {}'.format(var))
+            print('writing var: {0}'.format(var))
 
             for var, data in veglib_dict.iteritems():
                 if data.ndim == 1:
@@ -960,14 +982,14 @@ def soil(in_file, nlayers=3):
     Load the entire soil file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
     """
-    print('reading {}'.format(in_file))
+    print('reading {0}'.format(in_file))
     data = np.loadtxt(in_file)
 
     c = cols(nlayers=nlayers)
 
-    soil_dict = {}
-    for var in c.soil_param:
-        soil_dict[var] = np.squeeze(data[:, c.soil_param[var]])
+    soil_dict = OrderedDict()
+    for var, columns in c.soil_param.iteritems():
+        soil_dict[var] = np.squeeze(data[:, columns])
 
     return soil_dict
 # -------------------------------------------------------------------- #
@@ -980,13 +1002,13 @@ def snow(snow_file, soil_dict, snow_bands=5):
     Also reorders data to match gridcell order of soil file.
     """
 
-    print('reading {}'.format(snow_file))
+    print('reading {0}'.format(snow_file))
 
     data = np.loadtxt(snow_file)
 
     c = cols(snow_bands=snow_bands)
 
-    snow_dict = {}
+    snow_dict = OrderedDict()
     for var in c.snow_param:
         snow_dict[var] = data[:, c.snow_param[var]]
 
@@ -1009,7 +1031,7 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
     and vegclasses.  Also reorders data to match gridcell order of soil file.
     """
 
-    print('reading {}'.format(veg_file))
+    print('reading {0}'.format(veg_file))
 
     with open(veg_file) as f:
         lines = f.readlines()
@@ -1066,7 +1088,7 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
                 LAI[cell, vind, :] = np.array(line).astype(float)
                 row += 1
         cell += 1
-    veg_dict = {}
+    veg_dict = OrderedDict()
     veg_dict['gridcell'] = gridcel[:cell]
     veg_dict['Nveg'] = Nveg[:cell]
     veg_dict['Cv'] = Cv[:cell, :]
@@ -1097,7 +1119,7 @@ def veg_class(veg_file, maxcols=57, skiprows=1):
     Also reorders data to match gridcell order of soil file.
     """
 
-    print('reading {}'.format(veg_file))
+    print('reading {0}'.format(veg_file))
 
     usecols = np.arange(maxcols)
 
@@ -1105,7 +1127,7 @@ def veg_class(veg_file, maxcols=57, skiprows=1):
 
     c = cols()
 
-    veglib_dict = {}
+    veglib_dict = OrderedDict()
     for var in c.veglib:
         veglib_dict[var] = np.squeeze(data[:, c.veglib[var]])
 

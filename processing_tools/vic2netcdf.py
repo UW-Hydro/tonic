@@ -81,7 +81,8 @@ class Point(object):
                                   header=None,
                                   iterator=True,
                                   usecols=self.usecols,
-                                  names=self.names)
+                                  names=self.names,
+                                  skiprows=self.skiprows)
 
     def _read_ascii(self, count=None):
         self.df = self._reader.get_chunk(count)
@@ -159,7 +160,7 @@ class Plist(deque):
     def get_data(self, name, data_slice):
         return np.array([p.df[name].values[data_slice] for p in self])
 
-    def set_fileformat(self, fileformat):
+    def set_fileformat(self, fileformat, header=False):
         """sets and assigns fileformat specific attributes and methods"""
 
         if fileformat == 'ascii':
@@ -167,12 +168,18 @@ class Plist(deque):
         else:
             delimeter = r','  # true csv
 
+        if header:
+            skiprows = 6
+        else:
+            skiprows = 0
+
         for p in self:
             p.fileformat = fileformat
             if fileformat in ['ascii', 'csv']:
                 p.open = p._open_ascii
                 p.delimeter = delimeter
                 p.read = p._read_ascii
+                p.skiprows = skiprows
             elif fileformat == 'binary':
                 p.open = p._open_binary
                 p.read = p._read_binary
@@ -802,7 +809,11 @@ def vic2nc(options, global_atts, domain_dict, fields):
     if options['input_file_format'].lower() == 'binary':
         points.set_bin_dtypes(bin_dtypes)
         points.set_bin_mults(bin_mults)
-    points.set_fileformat(options['input_file_format'])
+    if 'header' in options:
+        header = options['header']
+    else:
+        header = False
+    points.set_fileformat(options['input_file_format'], header=header)
     print('done')
     # ---------------------------------------------------------------- #
 

@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/env python
 
 from __future__ import print_function
 import numpy as np
@@ -51,7 +51,7 @@ def main():
         else:
             append = True
 
-        for y, x, point in zip(ylist, xlist, point):
+        for y, x, point in zip(ylist, xlist, pointlist):
 
             data = np.empty((d[var_keys[0]].shape[0], len(var_keys)))
 
@@ -121,10 +121,9 @@ def process_config(config_file):
     # Make list of files, from wild cards
     if (WC_Start and WC_End):
         nums = np.arange(WC_Start, WC_End+1)
-        temp = []
+        files = []
         for i in nums:
-            temp.append(File_str.replace('**', str(i)))
-        files, = temp
+            files.append(File_str.replace('**', str(i)))
 
     return (files, coord_keys, var_keys, output, binary_mult, binary_type,
             paths, out_prefix, verbose)

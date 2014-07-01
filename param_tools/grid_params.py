@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-grid_parmas.pyc
+grid_parmas.py
 
 A toolkit for converting classic vic parameters to netcdf format
 """

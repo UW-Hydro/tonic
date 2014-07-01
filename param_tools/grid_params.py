@@ -477,8 +477,7 @@ def process_command_line():
                         default=None)
     parser.add_argument("-o", "--out_file",
                         type=str,
-                        help="Input file containing vegitation parameter data "
-                             "in standard VIC format",
+                        help="Output file name, (default=./params.nc)",
                         default='params.nc')
 
     parser.add_argument("--version",

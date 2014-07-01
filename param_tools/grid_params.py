@@ -30,8 +30,8 @@ MAX_NC_CHARS = 256
 FILLVALUE_F = default_fillvals[NC_DOUBLE]
 FILLVALUE_I = default_fillvals[NC_INT]
 
-XVAR = 'lon'
-YVAR = 'lat'
+XVAR = 'xc'
+YVAR = 'yc'
 
 # -------------------------------------------------------------------- #
 
@@ -79,7 +79,8 @@ class cols(object):
                                        ('resid_moist', np.arange(11*nlayers+16,
                                                                  12*nlayers+16)),
                                        ('fs_active',  np.array([12*nlayers+16])),
-                                       ('gl_active',  np.array([12*nlayers+17]))])
+                                       # ('gl_active',  np.array([12*nlayers+17]))
+                                       ])
 
         self.snow_param = OrderedDict([('cellnum', np.array([0])),
                                        ('AreaFract', np.arange(1,
@@ -95,14 +96,15 @@ class cols(object):
                                    ('lib_rmin', np.array([3])),
                                    ('lib_LAI', np.arange(4, 16)),
                                    ('lib_albedo', np.arange(16, 28)),
-                                   ('lib_rough', np.arange(28, 40)),
+                                   ('lib_veg_rough', np.arange(28, 40)),
                                    ('lib_displacement', np.arange(40, 52)),
                                    ('lib_wind_h', np.array(52)),
                                    ('lib_RGL', np.array(53)),
                                    ('lib_rad_atten', np.array(54)),
                                    ('lib_wind_atten', np.array(55)),
-                                   ('lib_trunk_ratio', np.array(56))])
-                        #'comment',  [57]}
+                                   ('lib_trunk_ratio', np.array(56)),
+                                   ('lib_snow_albedo', np.array(57))])
+                                   #  'comment',  [57]}
 # -------------------------------------------------------------------- #
 
 
@@ -151,13 +153,14 @@ class format(object):
                        'lib_rmin': '%1.6f',
                        'lib_LAI': '%1.6f',
                        'lib_albedo': '%1.6f',
-                       'lib_rough': '%1.6f',
+                       'lib_veg_rough': '%1.6f',
                        'lib_displacement': '%1.6f',
                        'lib_wind_h': '%1.6f',
                        'lib_RGL': '%1.6f',
                        'lib_rad_atten': '%1.6f',
                        'lib_wind_atten': '%1.6f',
-                       'lib_trunk_ratio': '%1.6f'}
+                       'lib_trunk_ratio': '%1.6f',
+                       'lib_snow_albedo': '%1.6f'}
                         #'comment': [57]}
 # -------------------------------------------------------------------- #
 
@@ -258,7 +261,7 @@ class description(object):
                                    'type (~100 s/m)',
                        'lib_LAI': 'Leaf-area index of vegetation type',
                        'lib_albedo': 'Shortwave albedo for vegetation type',
-                       'lib_rough': 'Vegetation roughness length (typically '
+                       'lib_veg_rough': 'Vegetation roughness length (typically '
                                     '0.123 * vegetation height)',
                        'lib_displacement': 'Vegetation displacement height '
                                            '(typically 0.67 * vegetation '
@@ -279,7 +282,9 @@ class description(object):
                                           'value has been 0.2.',
                        'lib_comment': 'Comment block for vegetation type. '
                                       'Model skips end of line so spaces are '
-                                      'valid entrys.'}
+                                      'valid entrys.',
+                       'lib_snow_albedo': 'Maximimum vegitation snow '
+                       'albedo'}
 
         self.veg_param = {'gridcell': 'Grid cell number',
                           'Nveg': 'Number of vegetation tiles in the grid '
@@ -371,14 +376,15 @@ class units(object):
                        'lib_rmin': 's/m',
                        'lib_LAI': 'N/A',
                        'lib_albedo': 'fraction',
-                       'lib_rough': 'm',
+                       'lib_veg_rough': 'm',
                        'lib_displacement': 'm',
                        'lib_wind_h': 'm',
                        'lib_RGL': 'W/m^2.',
                        'lib_rad_atten': 'fraction',
                        'lib_wind_atten': 'fraction',
                        'lib_trunk_ratio': 'fraction',
-                       'lib_comment': 'N/A'}
+                       'lib_comment': 'N/A',
+                       'lib_snow_albedo': 'fraction'}
 
         self.veg_param = {'gridcell': 'N/A',
                           'Nveg': 'N/A',
@@ -424,12 +430,13 @@ def main():
     all the parameterfiles (default name is params.nc)
     """
     grid_file, soil_file, snow_file, veg_file, \
-        vegl_file, out_file = process_command_line()
+        vegl_file, out_file, version = process_command_line()
     grids = make_grid(grid_file, soil_file,
                       snow_file=snow_file,
                       veg_file=veg_file,
                       vegl_file=vegl_file,
-                      nc_file=out_file)
+                      nc_file=out_file,
+                      version=version)
 
     print('completed grid_parms.main(), output file was: {0}'.format(out_file))
 # -------------------------------------------------------------------- #
@@ -474,6 +481,12 @@ def process_command_line():
                              "in standard VIC format",
                         default='params.nc')
 
+    parser.add_argument("--version",
+                        type=str,
+                        help="VIC version to write parameter file as",
+                        choices=['4.1.2', '5.0.dev'],
+                        default='params.nc')
+
     args = parser.parse_args()
 
     grid_file = args.grid_file
@@ -482,14 +495,16 @@ def process_command_line():
     veg_file = args.veg_file
     vegl_file = args.vegl_file
     out_file = args.out_file
+    version = args.version
 
-    return grid_file, soil_file, snow_file, veg_file, vegl_file, out_file
+    return (grid_file, soil_file, snow_file, veg_file, vegl_file, out_file,
+            version)
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
 def make_grid(grid_file, soil_file, snow_file, veg_file, vegl_file,
-              nc_file='params.nc'):
+              nc_file='params.nc', version='4.1.2'):
     """
     Make grid uses routines from params.py to read standard vic format
     parameter files.  After the parameter files are read, the files are placed
@@ -525,7 +540,8 @@ def make_grid(grid_file, soil_file, snow_file, veg_file, vegl_file,
                                               soil_dict['lons'])
 
     grid_dict = grid_params(soil_dict, target_grid, snow_dict=snow_dict,
-                            veg_dict=veg_dict)
+                            veg_dict=veg_dict, veglib_dict=veglib_dict,
+                            version=version)
 
     if nc_file:
         write_netcdf(nc_file, target_attrs,
@@ -533,7 +549,8 @@ def make_grid(grid_file, soil_file, snow_file, veg_file, vegl_file,
                      soil_grid=grid_dict['soil_dict'],
                      snow_grid=grid_dict['snow_dict'],
                      veglib_dict=veglib_dict,
-                     veg_grid=grid_dict['veg_dict'])
+                     veg_grid=grid_dict['veg_dict'],
+                     version=version)
 
     return grid_dict
 # -------------------------------------------------------------------- #
@@ -642,7 +659,8 @@ def latlon2yx(plats, plons, glats, glons):
 
 
 # -------------------------------------------------------------------- #
-def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
+def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
+                version='4.1.2'):
     """
     Reads the coordinate information from the soil_dict and target_grid and
     maps all input dictionaries to the target grid.  Returns a grid_dict with
@@ -665,12 +683,13 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
         out_dicts['veg_dict'] = False
 
     # get "unmasked" mask
-    mask = target_grid['mask'].data
+    mask = target_grid['mask']
 
     ysize, xsize = target_grid['mask'].shape
 
     ymask, xmask = np.nonzero(mask != 1)
-    print(ymask, xmask)
+
+    print('{0} masked values'.format(len(ymask)))
 
     for name, mydict in in_dicts.iteritems():
         out_dict = OrderedDict()
@@ -685,14 +704,14 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
 
             if mydict[var].ndim == 1:
                 out_dict[var] = np.ma.zeros((ysize, xsize),
-                                            dtype=dtype) + fill_val
+                                            dtype=dtype)
                 out_dict[var][yi, xi] = mydict[var]
                 out_dict[var][ymask, xmask] = fill_val
 
             elif mydict[var].ndim == 2:
                 steps = mydict[var].shape[1]
                 out_dict[var] = np.ma.zeros((steps, ysize, xsize),
-                                            dtype=dtype) + fill_val
+                                            dtype=dtype)
                 for i in xrange(steps):
                     out_dict[var][i, yi, xi] = mydict[var][:, i]
                 out_dict[var][:, ymask, xmask] = fill_val
@@ -701,7 +720,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
                 j = mydict[var].shape[1]
                 k = mydict[var].shape[2]
                 out_dict[var] = np.ma.zeros((j, k, ysize, xsize),
-                                            dtype=dtype) + fill_val
+                                            dtype=dtype)
                 for jj in xrange(j):
                     for kk in xrange(k):
                         out_dict[var][jj, kk, yi, xi] = mydict[var][:, jj, kk]
@@ -711,6 +730,61 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict):
             out_dict[var] = np.ma.masked_values(out_dict[var], fill_val)
 
         out_dicts[name] = out_dict
+
+    if veglib_dict and version == '5.0.dev':
+        # adjust vars for the following conditions
+        # bare soil tile
+
+        # Add bare soil tile
+        var = 'Cv'
+        bare = 1 - out_dicts['veg_dict'][var].sum(axis=0)
+        bare[bare < 0.0] = 0.0
+        nveg_clases = out_dicts['veg_dict'][var].shape[0] + 1
+        shape = (nveg_clases, ) + out_dicts['veg_dict'][var].shape[1:]
+        new = np.zeros(shape)
+        new[:-1, :, :] = out_dicts['veg_dict'][var]
+        new[-1, :, :] = bare
+        new /= new.sum(axis=0)
+        new[:, ymask, xmask] = FILLVALUE_F
+        out_dicts['veg_dict'][var] = new
+
+        # add dummy values for other veg vars
+        #   double root_depth(veg_class, root_zone, nj, ni) ;
+        #   double root_fract(veg_class, root_zone, nj, ni) ;
+        #   double LAI(veg_class, month, nj, ni) ;
+        for var in ['root_depth', 'root_fract', 'LAI']:
+            shape = (nveg_clases, ) + out_dicts['veg_dict'][var].shape[1:]
+            new = np.zeros(shape) + FILLVALUE_F
+            new[:-1, :, :] = out_dicts['veg_dict'][var]
+            new[-1, :, :] = 0
+            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+
+        # Distribute the veglib variables
+        # 1st - the 1d vars
+        #   double lib_overstory(veg_class) ;  --> (veg_class, nj, ni)
+        for var in ['overstory', 'rarc', 'rmin', 'wind_h', 'RGL', 'rad_atten',
+                    'rad_atten', 'wind_atten', 'trunk_ratio', 'snow_albedo']:
+            lib_var = 'lib_{0}'.format(var)
+            new = np.zeros((nveg_clases, ysize, xsize)) + FILLVALUE_F
+            new[:-1, yi, xi] = veglib_dict[lib_var][:, np.newaxis]
+            new[-1, yi, xi] = 0
+            new[:, ymask, xmask] = fill_val
+            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+
+        # 2nd - the 2d vars
+        for var in ['albedo', 'veg_rough', 'displacement']:
+            lib_var = 'lib_{0}'.format(var)
+            shape = (nveg_clases, veglib_dict[lib_var].shape[1], ysize, xsize)
+            new = np.zeros(shape) + FILLVALUE_F
+            new[:-1, :, yi, xi] = veglib_dict[lib_var][:, :, np.newaxis]
+            new[-1, :, yi, xi] = 0
+            for y, x in zip(ymask, xmask):
+                new[:, :, y, x] = fill_val
+            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+
+        # 3rd - remove the redundant vars
+        #   double lib_LAI(veg_class, month) ;
+        # removed from file
 
     return out_dicts
 # -------------------------------------------------------------------- #
@@ -762,7 +836,7 @@ def read_netcdf(nc_file, variables=[], coords=False, verbose=True):
 #  Write output to netCDF
 def write_netcdf(myfile, target_attrs, target_grid,
                  soil_grid=None, snow_grid=None, veg_grid=None,
-                 veglib_dict=None):
+                 veglib_dict=None, version='4.1.2'):
     """
     Write the gridded parameters to a netcdf4 file
     Will only write paramters that it is given
@@ -915,7 +989,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v.long_name = 'month of year'
 
         for var, data in veg_grid.iteritems():
-            print('writing var: {0}'.format(var))
+            print('writing var: {0} {1}'.format(var, data.shape))
 
             if veg_grid[var].ndim == 2:
                 v = f.createVariable(var, NC_DOUBLE, dims2,
@@ -928,8 +1002,8 @@ def write_netcdf(myfile, target_attrs, target_grid,
                                      fill_value=FILLVALUE_F)
                 v[:, :, :] = data
 
-            elif var == 'LAI':
-                mycoords = ('veg_class', 'month', ) + dims2
+            elif var in ['LAI', 'albedo', 'veg_rough', 'displacement']:
+                mycoords = ('veg_class', 'month') + dims2
                 v = f.createVariable(var, NC_DOUBLE, mycoords,
                                      fill_value=FILLVALUE_F)
                 v[:, :, :, :] = data
@@ -943,13 +1017,19 @@ def write_netcdf(myfile, target_attrs, target_grid,
             else:
                 raise ValueError('only able to handle dimensions <=4')
 
-            v.units = unit.veg_param[var]
-            v.description = desc.veg_param[var]
             v.long_name = var
+            try:
+                v.units = unit.veg_param[var]
+                v.description = desc.veg_param[var]
+            except KeyError:
+                lib_var = 'lib_{0}'.format(var)
+                v.units = unit.veglib[lib_var]
+                v.description = desc.veglib[lib_var]
+
             if coordinates:
                 v.coordinates = coordinates
 
-        if veglib_dict:
+        if veglib_dict and version != '5.0.dev':
             print('writing var: {0}'.format(var))
 
             for var, data in veglib_dict.iteritems():
@@ -1113,7 +1193,7 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
 
 
 # -------------------------------------------------------------------- #
-def veg_class(veg_file, maxcols=57, skiprows=1):
+def veg_class(veg_file, maxcols=58, skiprows=3):
     """
     Load the entire vegetation library file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
@@ -1122,6 +1202,7 @@ def veg_class(veg_file, maxcols=57, skiprows=1):
     print('reading {0}'.format(veg_file))
 
     usecols = np.arange(maxcols)
+    print(usecols, maxcols, skiprows)
 
     data = np.loadtxt(veg_file, usecols=usecols, skiprows=skiprows)
 

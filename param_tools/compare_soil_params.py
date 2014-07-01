@@ -206,9 +206,9 @@ def my_plot3(lons, lats, d1, d2, units=None,
              amax=None, mask=True, amap=None,
              t1='', t2='', cmap=None):
     """ 3 pannel plot to compare two different datasets"""
-    if not vmin:
+    if vmin is None:
         vmin = d1.min()
-    if not vmax:
+    if vmax is None:
         vmax = d1.max()
 
     if not cmap:
@@ -222,9 +222,9 @@ def my_plot3(lons, lats, d1, d2, units=None,
 
     anom = d1-d2
 
-    if not amin:
+    if amin is None:
         amin = -1*np.max(np.abs(anom))
-    if not amin:
+    if amax is None:
         amax = np.max(np.abs(anom))
 
     f, axarr = plt.subplots(1, 3, figsize=(13.5, 4), dpi=150)
@@ -232,11 +232,12 @@ def my_plot3(lons, lats, d1, d2, units=None,
 
     plt.sca(axarr[0])
     sub_plot_pcolor(lons, lats, d1, vmin=vmin, vmax=vmax, ncolors=9,
-                    title='{} (A)'.format(t1), cbar=False, cmap=cmap)
+                    title='{} (A)'.format(t1), cmap=cmap, units=units,
+                    cbar_location='right')
     plt.sca(axarr[1])
     sub_plot_pcolor(lons, lats, d2, vmin=vmin, vmax=vmax, ncolors=9,
-                    title='{} (B)'.format(t2), units='', cbar_location='right',
-                    cmap=cmap)
+                    title='{} (B)'.format(t2), units=units,
+                    cbar_location='right', cmap=cmap)
     plt.sca(axarr[2])
     sub_plot_pcolor(lons, lats, anom, ncolors=9, cmap=amap,
                     title='Difference (A-B)', units=units,
@@ -249,21 +250,21 @@ def my_plot9(lons, lats, d1, d2, units=None,
              amax=None, mask=True, amap=None,
              t1='', t2='', cmap=None):
     """ 9 pannel plot to compare soil layers for two different datasets"""
-    if not vmin:
+    if vmin is None:
         vmin = d1.min()
-    if not vmax:
+    if vmax is None:
         vmax = d1.max()
 
     anom = d1-d2
-    if not amin:
+    if amin is None:
         amin = -1*np.max(np.abs(anom))
-    if not amin:
+    if amax is None:
         amax = np.max(np.abs(anom))
 
-    if not cmap:
+    if cmap is None:
         cmap = cmap_discretize('cm.winter')
 
-    if not amap:
+    if amap is None:
         amap = cmap_discretize('cm.RdBu')
 
     f, axarr = plt.subplots(3, 3, figsize=(13.5, 9), dpi=150)
@@ -272,14 +273,14 @@ def my_plot9(lons, lats, d1, d2, units=None,
     for layer in xrange(3):
         plt.sca(axarr[layer, 0])
         sub_plot_pcolor(lons, lats, np.ma.masked_where(mask, d1[layer]),
-                        vmin=vmin, vmax=vmax,
-                        ncolors=9, title='{} (A)'.format(t1), cbar=False,
-                        cmap=cmap)
+                        vmin=vmin, vmax=vmax, units=units,
+                        ncolors=9, title='{} (A)'.format(t1),
+                        cmap=cmap, cbar_location='right',)
         plt.ylabel('Layer {}'.format(layer))
         plt.sca(axarr[layer, 1])
         sub_plot_pcolor(lons, lats, np.ma.masked_where(mask, d2[layer]),
                         vmin=vmin, vmax=vmax,
-                        ncolors=9, title='{} (B)'.format(t2), units='',
+                        ncolors=9, title='{} (B)'.format(t2), units=units,
                         cbar_location='right', cmap=cmap)
         plt.sca(axarr[layer, 2])
 
@@ -294,9 +295,9 @@ def sub_plot_pcolor(lons, lats, data, title=None, cmap=cm.jet,
                     vmin=None, vmax=None, cbar=True, cbar_location='bottom',
                     units=None, ncolors=5):
 
-    if vmin:
+    if vmin is None:
         vmin = data.min()
-    if vmax:
+    if vmax is None:
         vmax = data.max()
 
     m = Basemap(**projection)

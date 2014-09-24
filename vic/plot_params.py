@@ -1,11 +1,16 @@
 #!/usr/local/bin/python
+""" """
 
+
+from __future__ import print_function
 import numpy as np
-from netCDF4 import Dataset
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from mpl_toolkits.basemap import Basemap
+from share import read_netcdf
+description = ''
+help = ''
 
 projection = {'projection': 'npstere', 'boundinglat': 49,
               'lon_0': -114, 'lat_ts': 80.5}
@@ -14,6 +19,7 @@ paramNC = 'param_file'
 iceNC = 'ice_file'
 
 
+# -------------------------------------------------------------------- #
 def main():
     Pdata, Pattributes = read_netcdf(paramNC)
     Idata, Iattributes = read_netcdf(iceNC)
@@ -21,8 +27,11 @@ def main():
     baresoil = 1-np.sum(Pdata['Cv'], axis=0)
 
     plot_veg_types(Pdata['yc'], Pdata['xc'], Pdata['Cv'], baresoil)
+# -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
+#
 def plot_veg_types(yc, xc, Cv, baresoil):
     Projection_Parameters = projection
 
@@ -54,8 +63,11 @@ def plot_veg_types(yc, xc, Cv, baresoil):
              ha='center', fontsize=18)
 
     plt.show()
+# -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
+# 
 def compare_ice(yc, xc, baresoil, ice):
 
     ice = np.ma.masked_array(ice, mask=baresoil.mask)
@@ -84,8 +96,12 @@ def compare_ice(yc, xc, baresoil, ice):
     gs2.tight_layout(fig, rect=[0, 0.1, 0.333, 0.9])
 
     plt.show()
+    return
+# -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
+#
 def plot_map(ax, yc, xc, data, Projection_Parameters, cbar_loc=False, vmin=-1,
              vmax=1, cmap='GrBG'):
 
@@ -104,45 +120,10 @@ def plot_map(ax, yc, xc, data, Projection_Parameters, cbar_loc=False, vmin=-1,
         cbar = None
 
     return cbar
+# -------------------------------------------------------------------- #
 
 
-###############################################################################
-## Read netCDF Inputs
-## Read data from input netCDF.
-###############################################################################
-def read_netcdf(nc_file, variables=[], coords=False, verbose=False):
-    """
-    Read data from input netCDF. Will read all variables if none provided.
-    Will also return all variable attributes.
-    Both variables (data and attributes) are returned as dictionaries named by
-    variable
-    """
-    if verbose:
-        print('Reading input data variables: {0} '
-              'from file: {1}'.format(variables, nc_file))
-    f = Dataset(nc_file, 'r')
-    if variables == []:
-        variables = f.variables.keys()
-    d = {}
-    a = {}
-    if coords:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][coords]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][coords]
-                a[var] = f.variables[var].__dict__
-    else:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][:]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][:]
-                a[var] = f.variables[var].__dict__
-    f.close()
-    return d, a
-
+# -------------------------------------------------------------------- #
 if __name__ == "__main__":
     main()
+# -------------------------------------------------------------------- #

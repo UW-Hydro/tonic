@@ -1,18 +1,26 @@
 #!/usr/bin/env python
+"""netcdf2vic.py"""
 
 from __future__ import print_function
 import numpy as np
 import struct
 from netCDF4 import Dataset
 import os
-import argparse
 import ConfigParser
 
+description = 'Convert netCDF meteorological forcings to VIC sytle format'
+help = 'Convert netCDF meteorological forcings to VIC sytle format'
 
-###############################################################################
-def main():
-    (files, coord_keys, var_keys, output, binary_mult, binary_type, paths,
-     out_prefix, verbose) = process_command_line()
+
+# -------------------------------------------------------------------- #
+# top loevel run function
+def _run(args, **kwargs):
+
+    print(args)
+    return
+
+    (files, coord_keys, var_keys, output, binary_mult, binary_type,
+        paths, out_prefix, verbose) = process_config(ar)
 
     mask = read_netcdf(paths['mask_path'], nc_vars=['mask'])['mask']
     yi, xi = np.nonzero(mask)
@@ -64,27 +72,12 @@ def main():
             if output['ASCII']:
                 write_ASCII(data, point, out_prefix, paths['ASCIIoutPath'],
                             append)
+    return
+# -------------------------------------------------------------------- #
 
 
-###############################################################################
-def process_command_line():
-    """
-    Parse arguments and assign flags for further loading of variables, for
-    information on input arguments, type rout.py -h
-    """
-    # Parse arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("config", type=str, help="Input Configuration File")
-    args = parser.parse_args()
-
-    (files, coord_keys, var_keys, output, binary_mult, binary_type, paths,
-        out_prefix, verbose) = process_config(args.config)
-
-    return (files, coord_keys, var_keys, output, binary_mult, binary_type,
-            paths, out_prefix, verbose)
-
-
-###############################################################################
+# -------------------------------------------------------------------- #
+# Read config file
 def process_config(config_file):
     """
     Parse arguments and assign flags for further loading of files,
@@ -127,6 +120,7 @@ def process_config(config_file):
 
     return (files, coord_keys, var_keys, output, binary_mult, binary_type,
             paths, out_prefix, verbose)
+# -------------------------------------------------------------------- #
 
 
 ###############################################################################
@@ -158,9 +152,11 @@ def read_netcdf(nc_file, nc_vars=[], coords=False, verbose=False):
                 d[var] = np.squeeze(f.variables[var][:])
     f.close()
     return d
+# -------------------------------------------------------------------- #
 
 
-###############################################################################
+# -------------------------------------------------------------------- #
+# Write ASCII
 def write_ASCII(array, point, out_prefix, path, append, verbose=False):
     """
     Write an array to standard VIC ASCII output.
@@ -176,9 +172,12 @@ def write_ASCII(array, point, out_prefix, path, append, verbose=False):
         print('Writing ASCII Data to'.format(out_file))
     np.savetxt(f, array, fmt='%1.4f')
     f.close()
+    return
+# -------------------------------------------------------------------- #
 
 
-###############################################################################
+# -------------------------------------------------------------------- #
+# Write Binary
 def write_binary(array, point, binary_type, out_prefix, path, append,
                  verbose=False):
     """
@@ -197,6 +196,5 @@ def write_binary(array, point, binary_type, out_prefix, path, append,
         data = struct.pack(binary_type, *row)
         f.write(data)
     f.close()
-
-if __name__ == "__main__":
-    main()
+    return
+# -------------------------------------------------------------------- #

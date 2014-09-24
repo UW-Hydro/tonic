@@ -2,18 +2,20 @@
 """
 Script for writing VIC ascii format parameter files from netcdf format.
 """
-import os
+description = ''
+help = ''
+
+
 import numpy as np
-from netCDF4 import Dataset
-import grid_params
-import argparse
 from scipy.spatial import cKDTree
+from . import grid_params
+from .share import read_netcdf
 
 FILL_VALUE = -9999
 
 
 # -------------------------------------------------------------------- #
-def main():
+def _run():
 
     nc_params, soil_file, UL, LR, outfiles, snow_file, \
         veg_file, project, NIJSSEN2ARNO = process_command_line()
@@ -418,113 +420,4 @@ def find_gridcells(mask):
     xinds, yinds = np.nonzero(mask > 0)
 
     return cells, xinds, yinds
-# -------------------------------------------------------------------- #
-
-
-# -------------------------------------------------------------------- #
-def process_command_line():
-    """
-    Process command line arguments.
-    Optionally may include snow and vegitation parameter files.
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("nc_params",
-                        type=str,
-                        help="Input netCDF VIC parameter file")
-    parser.add_argument("--soil_prefix",
-                        type=str,
-                        help="Output soil param file prefix (default is same "
-                             "as nc_params)",
-                        default=False)
-    parser.add_argument("--veg_prefix",
-                        type=int,
-                        help="Output veg param file prefix",
-                        default=False)
-    parser.add_argument("-UL", "--upper_left_corner",
-                        type=int,
-                        help="Upper left corner for subset",
-                        default=False)
-    parser.add_argument("-LR", "--lower_right_corner",
-                        type=int,
-                        help="Lower right corner for subset",
-                        default=False)
-    parser.add_argument("--outfiles",
-                        type=int,
-                        help="Number of outfiles",
-                        default=1)
-    parser.add_argument("--snow_file",
-                        type=str,
-                        help="Name of output snow file",
-                        default=False)
-    parser.add_argument("--veg_file",
-                        type=str,
-                        help="Name of output veg_file",
-                        default=False)
-    parser.add_argument("--project",
-                        type=str,
-                        help='Use project configuration options',
-                        choices=['RASM'])
-    parser.add_argument("--NIJSSEN2ARNO",
-                        help='Convert soil parameters from NIJSSEN2001 format '
-                             'to ARNO format',
-                        action='store_true')
-
-    args = parser.parse_args()
-
-    if args.soil_prefix:
-        soil_prefix = args.soil_prefix
-    else:
-        soil_prefix = os.path.splitext(args.nc_params)[0]
-
-    return args.nc_params, soil_prefix, args.upper_left_corner, \
-        args.lower_right_corner, args.outfiles, args.snow_file, \
-        args.veg_file, args.project, args.NIJSSEN2ARNO
-# -------------------------------------------------------------------- #
-
-
-# -------------------------------------------------------------------- #
-# Read netCDF Inputs
-def read_netcdf(ncFile, var_names=[], coords=False, verbose=True):
-    """
-    Read data from input netCDF. Will read all variables if none provided.
-    Will also return all variable attributes.
-    Both variables (data and attributes) are returned as dictionaries named by
-    variable
-    """
-
-    f = Dataset(ncFile, 'r')
-    if var_names == []:
-        var_names = f.variables.keys()
-
-    if verbose:
-        print('Reading input data var_names:{0} from file: '
-              '{1}'.format(var_names, ncFile))
-
-    d = {}
-    a = {}
-
-    if coords:
-        if isinstance(var_names, str):
-            d[var_names] = f.variables[var_names][coords]
-            a[var_names] = f.variables[var_names].__dict__
-        else:
-            for var in var_names:
-                d[var] = f.variables[var][coords]
-                a[var] = f.variables[var].__dict__
-    else:
-        if isinstance(var_names, str):
-            d[var_names] = f.variables[var_names][:]
-            a[var_names] = f.variables[var_names].__dict__
-        else:
-            for var in var_names:
-                d[var] = f.variables[var][:]
-                a[var] = f.variables[var].__dict__
-    f.close()
-
-    return d, a
-# -------------------------------------------------------------------- #
-
-# -------------------------------------------------------------------- #
-if __name__ == "__main__":
-    main()
 # -------------------------------------------------------------------- #

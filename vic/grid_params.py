@@ -12,10 +12,15 @@ from netCDF4 import Dataset, default_fillvals
 from scipy.spatial import cKDTree
 from scipy import stats
 import time as tm
-import argparse
 import socket
 from getpass import getuser
 from collections import OrderedDict
+from .share import read_netcdf
+
+# -------------------------------------------------------------------- #
+description = 'Converter for VIC ASCII style parameters to gridded netCDF'
+help = 'Converter for VIC ASCII style parameters to gridded netCDF'
+# -------------------------------------------------------------------- #
 
 # -------------------------------------------------------------------- #
 # precision
@@ -421,83 +426,17 @@ class units(object):
 
 
 # -------------------------------------------------------------------- #
-def main():
+def _run(args):
     """
-    If called from the command line, main() will process command line arguments
-    and run make_grid, Make grid reads the soil file first (mandatory) and then
-    includes any other paramter files.  Parameter column locations and
-    units/descriptions are from params.py.  Output is to a netcdf containing
-    all the parameterfiles (default name is params.nc)
     """
-    grid_file, soil_file, snow_file, veg_file, \
-        vegl_file, out_file, version = process_command_line()
-    grids = make_grid(grid_file, soil_file,
-                      snow_file=snow_file,
-                      veg_file=veg_file,
-                      vegl_file=vegl_file,
-                      nc_file=out_file,
-                      version=version)
+    nc_file = make_grid(args.grid_file, args.soil_file,
+                        snow_file=args.snow_file,
+                        veg_file=args.veg_file,
+                        vegl_file=args.vegl_file,
+                        nc_file=args.out_file,
+                        version=args.version)
 
-    print('completed grid_parms.main(), output file was: {0}'.format(out_file))
-# -------------------------------------------------------------------- #
-
-
-# -------------------------------------------------------------------- #
-#
-def process_command_line():
-    """
-    Process command line arguments. Must have target grid (in netcdf format)
-    and soil file (in standard vic format)
-    Optionally may include snow and vegitation parameter files.
-    """
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-g", "--grid_file",
-                        type=str,
-                        help="Input netCDF target grid",
-                        default=None)
-    parser.add_argument("-s", "--soil_file",
-                        type=str,
-                        help="Input file containing soil parameter data in "
-                             "standard VIC format",
-                        required=True)
-    parser.add_argument("-e", "--snow_file",
-                        type=str,
-                        help="Input file containing snowband/elevation band "
-                             "data in standard VIC format",
-                        default=None)
-    parser.add_argument("-v", "--veg_file",
-                        type=str,
-                        help="Input file containing vegitation parameter data "
-                             "in standard VIC format",
-                        default=None)
-    parser.add_argument("-l", "--vegl_file",
-                        type=str,
-                        help="Input file containing vegitation library data in"
-                             " standard VIC format",
-                        default=None)
-    parser.add_argument("-o", "--out_file",
-                        type=str,
-                        help="Output file name, (default=./params.nc)",
-                        default='params.nc')
-
-    parser.add_argument("--version",
-                        type=str,
-                        help="VIC version to write parameter file as",
-                        choices=['4.1.2', '5.0.dev'],
-                        default='params.nc')
-
-    args = parser.parse_args()
-
-    grid_file = args.grid_file
-    soil_file = args.soil_file
-    snow_file = args.snow_file
-    veg_file = args.veg_file
-    vegl_file = args.vegl_file
-    out_file = args.out_file
-    version = args.version
-
-    return (grid_file, soil_file, snow_file, veg_file, vegl_file, out_file,
-            version)
+    print('completed grid_parms.main(), output file was: {0}'.format(nc_file))
 # -------------------------------------------------------------------- #
 
 
@@ -550,8 +489,9 @@ def make_grid(grid_file, soil_file, snow_file, veg_file, vegl_file,
                      veglib_dict=veglib_dict,
                      veg_grid=grid_dict['veg_dict'],
                      version=version)
-
-    return grid_dict
+        return nc_file
+    else:
+        return grid_dict
 # -------------------------------------------------------------------- #
 
 
@@ -690,7 +630,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
 
     print('{0} masked values'.format(len(ymask)))
 
-    for name, mydict in in_dicts.iteritems():
+    for name, mydict in in_dicts.items():
         out_dict = OrderedDict()
 
         for var in mydict:
@@ -790,48 +730,6 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
 
 
 # -------------------------------------------------------------------- #
-def read_netcdf(nc_file, variables=[], coords=False, verbose=True):
-    """
-    Read data from input netCDF. Will read all variables if none provided.
-    Will also return all variable attributes.
-    Both variables (data and attributes) are returned as dictionaries named by
-    variable.
-    """
-
-    f = Dataset(nc_file, 'r')
-
-    if variables == []:
-        variables = f.variables.keys()
-
-    if verbose:
-        print('Reading input data variables: '
-              ' {0} from file: {1}'.format(variables, nc_file))
-
-    d = OrderedDict()
-    a = OrderedDict()
-
-    if coords:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][coords]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][coords]
-                a[var] = f.variables[var].__dict__
-    else:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][:]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][:]
-                a[var] = f.variables[var].__dict__
-    f.close()
-    return d, a
-# -------------------------------------------------------------------- #
-
-
-# -------------------------------------------------------------------- #
 #  Write output to netCDF
 def write_netcdf(myfile, target_attrs, target_grid,
                  soil_grid=None, snow_grid=None, veg_grid=None,
@@ -907,7 +805,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
     # set attributes
     for var in target_grid:
-        for name, attr in target_attrs[var].iteritems():
+        for name, attr in target_attrs[var].items():
             try:
                 setattr(v, name, attr)
             except:
@@ -918,7 +816,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
     layer_dims = ('nlayer', ) + dims2
 
     # soil grid
-    for var, data in soil_grid.iteritems():
+    for var, data in soil_grid.items():
         print('writing var: {0}'.format(var))
 
         if data.ndim == 1:
@@ -954,7 +852,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                                      snow_grid['AreaFract'].shape[0])
         snow_dims = ('snow_band', ) + dims2
 
-        for var, data in snow_grid.iteritems():
+        for var, data in snow_grid.items():
             print('writing var: {0}'.format(var))
 
             if data.ndim == 2:
@@ -987,7 +885,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v[:] = np.arange(1, 13)
         v.long_name = 'month of year'
 
-        for var, data in veg_grid.iteritems():
+        for var, data in veg_grid.items():
             print('writing var: {0} {1}'.format(var, data.shape))
 
             if veg_grid[var].ndim == 2:
@@ -1031,7 +929,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         if veglib_dict and version != '5.0.dev':
             print('writing var: {0}'.format(var))
 
-            for var, data in veglib_dict.iteritems():
+            for var, data in veglib_dict.items():
                 if data.ndim == 1:
                     v = f.createVariable(var, NC_DOUBLE, ('veg_class', ),
                                          fill_value=FILLVALUE_F)
@@ -1067,7 +965,7 @@ def soil(in_file, nlayers=3):
     c = cols(nlayers=nlayers)
 
     soil_dict = OrderedDict()
-    for var, columns in c.soil_param.iteritems():
+    for var, columns in c.soil_param.items():
         soil_dict[var] = np.squeeze(data[:, columns])
 
     return soil_dict
@@ -1212,9 +1110,4 @@ def veg_class(veg_file, maxcols=58, skiprows=3):
         veglib_dict[var] = np.squeeze(data[:, c.veglib[var]])
 
     return veglib_dict
-# -------------------------------------------------------------------- #
-
-# -------------------------------------------------------------------- #
-if __name__ == "__main__":
-    main()
 # -------------------------------------------------------------------- #

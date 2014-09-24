@@ -13,18 +13,17 @@ References:
  - Pandas: http://pandas.pydata.org/
 """
 # Imports
+from __future__ import print_function
 from os import path
 from glob import glob
 from re import findall
 from collections import OrderedDict, deque
 from bisect import bisect_left
-from argparse import ArgumentParser
 from getpass import getuser
 from datetime import datetime, timedelta
 from pandas import read_table, DataFrame
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
 from ConfigParser import SafeConfigParser
-from scipy.spatial import cKDTree
 import socket
 import subprocess
 import dateutil.relativedelta as relativedelta
@@ -32,7 +31,12 @@ import os
 import sys
 import numpy as np
 import time as tm
+from .share import read_config
 
+description = 'Convert a set of VIC ascii outputs to gridded netCDF'
+help = 'Convert a set of VIC ascii outputs to gridded netCDF'
+
+# -------------------------------------------------------------------- #
 SECSPERDAY = 86400.0
 
 REFERENCE_STRING = '0001-1-1 0:0:0'
@@ -43,7 +47,9 @@ TIMESTAMPFORM = '%Y-%m-%d-%H'
 NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
 NC_INT = 'i4'
+# -------------------------------------------------------------------- #
 
+# -------------------------------------------------------------------- #
 # Default configuration
 default_config = {'OPTIONS': {'out_file_format': 'NETCDF3_64BIT',
                               'precision': 'single',
@@ -55,8 +61,10 @@ default_config = {'OPTIONS': {'out_file_format': 'NETCDF3_64BIT',
                   'DOMAIN': {'longitude_var': 'longitude',
                              'latitude_var': 'latitude',
                              'y_x_dims': ['y', 'x']}}
+# -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Point(object):
     '''Creates a point class for intellegently
     storing coordinate information'''
@@ -130,6 +138,7 @@ class Point(object):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Plist(deque):
     '''List subclass that has a few helper methods for adding and
     obtaining coordinates'''
@@ -208,6 +217,7 @@ class Plist(deque):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Segment(object):
     def __init__(self, num, i0, i1, nc_format, filename,
                  memory_mode='original'):
@@ -452,61 +462,18 @@ End Date: {5}
 # -------------------------------------------------------------------- #
 
 
-# -------------------------------------------------------------------- #
-class NcVar(np.ndarray):
-    """ Subclass of numpy array to cary netcdf attributes"""
-    def __new__(cls, f, varname):
-        obj = np.asarray(f.variables[varname][:]).view(cls)
-        # add the new attribute to the created instance
-        obj.dimensions = f.variables[varname].dimensions
-        obj.attributes = f.variables[varname].__dict__
-        for dim in obj.dimensions:
-            setattr(obj, dim, len(f.dimensions[dim]))
-        # Finally, we must return the newly created object:
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
-# -------------------------------------------------------------------- #
-
-
-class FakeNcVar(np.ndarray):
-    """ Subclass of numpy array to carry netcdf attributes"""
-    def __new__(cls, data, dimensions, attributes):
-        obj = np.asarray(data).view(cls)
-        # add the new attribute to the created instance
-        obj.dimensions = dimensions
-        obj.attributes = attributes
-        shape = data.shape
-        for i, dim in enumerate(obj.dimensions):
-            setattr(obj, dim, shape[i])
-        # Finally, we must return the newly created object:
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
-# -------------------------------------------------------------------- #
-
-
-def main():
+def _run(args):
     """Top level driver"""
 
-    # ---------------------------------------------------------------- #
-    # Read command Line
-    config_file, create_batch, batch_dir = process_command_line()
-    # ---------------------------------------------------------------- #
-
-    if create_batch:
+    if args.create_batch:
         # ------------------------------------------------------------ #
         # Create batch files and exit
-        batch(config_file, create_batch, batch_dir)
+        batch(args.config_file, args.create_batch, args.batch_dir)
         # ------------------------------------------------------------ #
     else:
         # ------------------------------------------------------------ #
         # Read Configuration files
-        config_dict = read_config(config_file)
+        config_dict = read_config(args.config_file)
         options = config_dict.pop('OPTIONS')
         global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
         if not options['regular_grid']:
@@ -524,6 +491,7 @@ def main():
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def vic2nc(options, global_atts, domain_dict, fields):
     """ Convert ascii VIC files to netCDF format"""
 
@@ -623,7 +591,6 @@ def vic2nc(options, global_atts, domain_dict, fields):
             print('WARNING: New end date is {0}'.format(end_date))
     else:
         end_date = vic_datelist[-1]
-
 
     # Ordinal Time
     start_ord = date2num(start_date, TIMEUNITS, calendar=options['calendar'])
@@ -877,66 +844,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
 # -------------------------------------------------------------------- #
 
 
-def read_config(config_file):
-    """
-    Return a dictionary with subdictionaries of all configFile options/values
-    """
-    config = SafeConfigParser()
-    config.optionxform = str
-    config.read(config_file)
-    sections = config.sections()
-    dict1 = OrderedDict()
-    for section in sections:
-        options = config.options(section)
-        dict2 = OrderedDict()
-        for option in options:
-            dict2[option] = config_type(config.get(section, option))
-        dict1[section] = dict2
-
-    for name, section in dict1.iteritems():
-        if name in default_config.keys():
-            for option, key in default_config[name].iteritems():
-                if option not in section.keys():
-                    dict1[name][option] = key
-
-    return dict1
-
-
-def config_type(value):
-    """
-    Parse the type of the configuration file option.
-    First see the value is a bool, then try float, finally return a string.
-    """
-    val_list = [x.strip() for x in value.split(',')]
-    if len(val_list) == 1:
-        value = val_list[0]
-        if value in ['true', 'True', 'TRUE', 'T']:
-            return True
-        elif value in ['false', 'False', 'FALSE', 'F']:
-            return False
-        elif value in ['none', 'None', 'NONE', '']:
-            return None
-        else:
-            try:
-                return int(value)
-            except:
-                pass
-            try:
-                return float(value)
-            except:
-                return value
-    else:
-        try:
-            return map(int, val_list)
-        except:
-            pass
-        try:
-            return map(float, val_list)
-        except:
-            return val_list
 # -------------------------------------------------------------------- #
-
-
 def get_file_coords(files):
     """
     Get list of Point objects
@@ -954,6 +862,7 @@ def get_file_coords(files):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def get_dates(file):
     """
     Read the first file in the input directory and create a ordinal based
@@ -985,6 +894,7 @@ def get_dates(file):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def make_dates(start, end, dt, calendar='standard'):
     """
     Return a list of datetime object from inputs of
@@ -1009,6 +919,7 @@ def make_dates(start, end, dt, calendar='standard'):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def read_domain(domain_dict):
 
     print('reading domain file: {0}'.format(domain_dict['filename']))
@@ -1027,38 +938,7 @@ def read_domain(domain_dict):
 # -------------------------------------------------------------------- #
 
 
-def get_grid_inds(domain, points):
-    """
-    Find location of lat/lon points in 2d target grid.
-    Uses cKdtree nearest neighbor mapping.
-    """
-    lons = points.get_lons()
-    lats = points.get_lats()
-
-    if (lons.min() < 0) and (domain['lon'].min() >= 0):
-        posinds = np.nonzero(lons < 0)
-        lons[posinds] += 360
-        print('adjusted VIC lon minimum (+360 for negative lons)')
-
-    # Make sure the longitude / latitude vars are 2d
-    if domain['lat'].ndim == 1 or domain['lon'].ndim == 1:
-        dlons, dlats = np.meshgrid(domain['lon'], domain['lat'])
-
-    combined = np.dstack(([dlats.ravel(), dlons.ravel()]))[0]
-    point_list = list(np.vstack((lats, lons)).transpose())
-
-    mytree = cKDTree(combined)
-    dist, indexes = mytree.query(point_list, k=1)
-
-    yinds, xinds = np.unravel_index(indexes, dlons.shape)
-
-    points.add_xs(xinds)
-    points.add_ys(yinds)
-
-    return points
 # -------------------------------------------------------------------- #
-
-
 def batch(config_file, create_batch, batch_dir):
     """Create a set of batch configuration files"""
 
@@ -1182,93 +1062,4 @@ def batch(config_file, create_batch, batch_dir):
 
             t0 += td
     return
-# -------------------------------------------------------------------- #
-
-
-def latlon2yx(plats, plons, glats, glons):
-    """find y x coordinates """
-
-    if glons.ndim == 1 or glats.ndim == 1:
-        glons, glats = np.meshgrid(glons, glats)
-
-    combined = np.dstack(([glats.ravel(), glons.ravel()]))[0]
-    points = list(np.vstack((np.array(plats), np.array(plons))).transpose())
-
-    mytree = cKDTree(combined)
-    dist, indexes = mytree.query(points, k=1)
-    y, x = np.unravel_index(np.array(indexes), glons.shape)
-    return y, x
-# -------------------------------------------------------------------- #
-
-
-def calc_grid(lats, lons, decimals=4):
-    """ determine shape of regular grid from lons and lats"""
-
-    print('Calculating grid size now...')
-
-    target_grid = {}
-
-    # get unique lats and lons
-    lon = np.sort(np.unique(lons.round(decimals=decimals)))
-    print('found {0} unique lons'.format(len(lon)))
-
-    lat = np.sort(np.unique(lats.round(decimals=decimals)))
-    print('found {0} unique lats'.format(len(lat)))
-
-    y, x = latlon2yx(lats, lons, lat, lon)
-
-    mask = np.zeros((len(lat), len(lon)), dtype=int)
-
-    mask[y, x] = 1
-
-    # Create fake NcVar Types
-    target_grid['lon'] = FakeNcVar(lon, ('lon', ),
-                                   {'long_name': 'longitude coordinate',
-                                    'units': 'degrees_east'})
-    target_grid['lat'] = FakeNcVar(lat, ('lat', ),
-                                   {'long_name': 'latitude coordinate',
-                                    'units': 'degrees_north'})
-    target_grid['mask'] = FakeNcVar(mask, ('lat', 'lon', ),
-                                    {'long_name': 'domain mask',
-                                     'comment': '0 indicates grid cell is not \
-                                     active'})
-
-    print('Created a target grid based on the lats and lons in the '
-          'input file names')
-    print('Grid Size: {}'.format(mask.shape))
-
-    return target_grid
-# -------------------------------------------------------------------- #
-
-
-def process_command_line():
-    """
-    Get the path to the config_file
-    """
-    # Parse arguments
-    parser = ArgumentParser(description='convert VIC ascii output to \
-                            netCDF format')
-    parser.add_argument("config_file", type=str,
-                        help="Input configuration file")
-    parser.add_argument("--create_batch", type=str,
-                        choices=['days', 'months', 'years', 'variables'],
-                        default=False, help="Create a batch of config files")
-    parser.add_argument("--batch_dir", type=str, default="./",
-                        help="Location to put batch config files")
-    args = parser.parse_args()
-
-    if not os.path.isfile(args.config_file):
-        raise IOError('Configuration File: {0} is not a valid \
-                      file'.format(args.config_file))
-
-    if not os.path.isdir(args.batch_dir) and args.create_batch:
-        raise IOError('Configuration File: {0} is not a valid \
-                      file'.format(args.config_file))
-
-    return args.config_file, args.create_batch, args.batch_dir
-# -------------------------------------------------------------------- #
-
-# -------------------------------------------------------------------- #
-if __name__ == "__main__":
-    main()
 # -------------------------------------------------------------------- #

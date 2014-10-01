@@ -171,7 +171,7 @@ class format(object):
 
 
 # -------------------------------------------------------------------- #
-class description(object):
+class desc(object):
     def __init__(self, ORGANIC_FRACT=False, SPATIAL_FROST=False,
                  SPATIAL_SNOW=False, EXCESS_ICE=False,
                  JULY_TAVG_SUPPLIED=False, BLOWING_SNOW=False,
@@ -429,12 +429,13 @@ class units(object):
 def _run(args):
     """
     """
-    nc_file = make_grid(args.grid_file, args.soil_file,
+    nc_file = make_grid(grid_file=args.grid_file,
+                        soil_file=args.soil_file,
                         snow_file=args.snow_file,
                         veg_file=args.veg_file,
                         vegl_file=args.vegl_file,
                         nc_file=args.out_file,
-                        version=args.version)
+                        version=args.VIC_version)
 
     print('completed grid_parms.main(), output file was: {0}'.format(nc_file))
 # -------------------------------------------------------------------- #
@@ -751,7 +752,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
     f.host = socket.gethostname()
 
     unit = units(GLOBAL_LAI=True)
-    desc = description()
+    desc = desc()
 
     # target grid
     # coordinates

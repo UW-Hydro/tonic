@@ -12,8 +12,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from share import read_netcdf
-from plot_utils import sub_plot_pcolor, cmap_discretize
+from .share import read_netcdf
+from .plot_utils import sub_plot_pcolor, cmap_discretize
 
 description = 'Create plots comparing two sets of VIC soil parameters'
 help = 'Create plots comparing two sets of VIC soil parameters'
@@ -31,6 +31,10 @@ projection = {'urcrnrlat': 27.511827255753555,
 
 
 def _run(args, ):
+
+    print(args)
+    print('in compare_soil_params')
+
     plot_atts_3 = None
     plot_atts_9 = None
 

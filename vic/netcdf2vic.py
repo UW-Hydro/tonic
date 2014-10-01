@@ -4,9 +4,7 @@
 from __future__ import print_function
 import numpy as np
 import struct
-from netCDF4 import Dataset
 import os
-import ConfigParser
 
 description = 'Convert netCDF meteorological forcings to VIC sytle format'
 help = 'Convert netCDF meteorological forcings to VIC sytle format'
@@ -73,85 +71,6 @@ def _run(args, **kwargs):
                 write_ASCII(data, point, out_prefix, paths['ASCIIoutPath'],
                             append)
     return
-# -------------------------------------------------------------------- #
-
-
-# -------------------------------------------------------------------- #
-# Read config file
-def process_config(config_file):
-    """
-    Parse arguments and assign flags for further loading of files,
-    Configuration flag must be raised on command line (-C) to configuration
-    file must be provided.
-    Usage:  netcdf2vic.py -C netcdf2vic.cfg
-    """
-    config = ConfigParser.ConfigParser()
-    config.read(config_file)
-    config.sections()
-    var_keys = config.get('Basics', 'var_keys').split(',')
-    coord_keys = config.get('Basics', 'coord_keys').split(',')
-    verbose = config.getboolean('Basics', 'verbose')
-    WC_Start = config.getint('Basics', 'WC_Start')
-    WC_End = config.getint('Basics', 'WC_End')
-    output = {'Binary': config.getboolean('Basics', 'Binary'),
-              'ASCII': config.getboolean('Basics', 'ASCII')}
-    paths = {'in_path': config.get('Paths', 'in_path'),
-             'mask_path': config.get('Paths', 'mask')}
-    File_str = config.get('Basics', 'File')
-
-    if output['ASCII']:
-        paths['ASCIIoutPath'] = config.get('Paths', 'ASCIIoutPath')
-
-    if output['Binary']:
-        binary_mult = map(int, config.get('Basics', 'Mult').split(','))
-        binary_type = config.get('Basics', 'Type')
-        paths['BinaryoutPath'] = config.get('Paths', 'BinaryoutPath')
-    else:
-        binary_mult = []
-        binary_type = ""
-
-    out_prefix = config.get('Basics', 'out_prefix')
-    # Make list of files, from wild cards
-    if (WC_Start and WC_End):
-        nums = np.arange(WC_Start, WC_End+1)
-        files = []
-        for i in nums:
-            files.append(File_str.replace('**', str(i)))
-
-    return (files, coord_keys, var_keys, output, binary_mult, binary_type,
-            paths, out_prefix, verbose)
-# -------------------------------------------------------------------- #
-
-
-###############################################################################
-## Read netCDF Inputs
-## Read data from input netCDF.
-###############################################################################
-def read_netcdf(nc_file, nc_vars=[], coords=False, verbose=False):
-    """
-    Read data from input netCDF. Will read all variables if none provided.
-    """
-    f = Dataset(nc_file, 'r')
-    if nc_vars == []:
-        nc_vars = f.variables.keys()
-    if verbose:
-        print('Reading input data nc_vars: '
-              '{0} from file: {1}'.format(nc_vars, nc_file))
-    d = {}
-    if coords:
-        if isinstance(nc_vars, str):
-            d[nc_vars] = np.squeeze(f.variables[nc_vars][coords])
-        else:
-            for var in nc_vars:
-                d[var] = np.squeeze(f.variables[var][coords])
-    else:
-        if isinstance(nc_vars, str):
-            d[nc_vars] = np.squeeze(f.variables[nc_vars][:])
-        else:
-            for var in nc_vars:
-                d[var] = np.squeeze(f.variables[var][:])
-    f.close()
-    return d
 # -------------------------------------------------------------------- #
 
 

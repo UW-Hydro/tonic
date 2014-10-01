@@ -23,7 +23,6 @@ from getpass import getuser
 from datetime import datetime, timedelta
 from pandas import read_table, DataFrame
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
-from ConfigParser import SafeConfigParser
 import socket
 import subprocess
 import dateutil.relativedelta as relativedelta
@@ -31,7 +30,7 @@ import os
 import sys
 import numpy as np
 import time as tm
-from .share import read_config
+from .share import read_config, SafeConfigParser
 
 description = 'Convert a set of VIC ascii outputs to gridded netCDF'
 help = 'Convert a set of VIC ascii outputs to gridded netCDF'

@@ -2,7 +2,10 @@
 from netCDF4 import Dataset
 from collections import OrderedDict
 import numpy as np
-from configparser import SafeConfigParser
+try:
+    from configparser import SafeConfigParser
+except:
+    from ConfigParser import SafeConfigParser
 from scipy.spatial import cKDTree
 
 

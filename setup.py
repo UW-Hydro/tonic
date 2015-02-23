@@ -94,10 +94,11 @@ if write_version:
 # Run Setup
 setup(name='tonic',
       version=FULLVERSION,
-      description='tonic is a Python toolkit for distributed hydrologic modeling',
+      description='tonic is a Python toolkit for distributed hydrologic models',
       author='Joe Hamman',
       author_email='jhamman@hydro.washington.edu',
       url='https://github.com/jhamman/tonic',
-      packages=['tonic', 'tonic.models', 'tonic.data_tools'],
+      packages=['tonic'],
+      modules=['tonic.models', 'tonic.data_tools'],
       scripts=['scripts/vic_utils'])
 # -------------------------------------------------------------------- #

@@ -45,12 +45,11 @@ def plot_veg_types(yc, xc, cv, baresoil):
 
     for loc in xrange(11):
         ax = fig.add_subplot(gs1[loc])
-        c = plot_map(ax, yc, xc, cv[loc], projection_parameters, vmin=0,
-                     cmap='Jet')
+        plot_map(ax, yc, xc, cv[loc], projection_parameters, vmin=0,
+                 cmap='Jet')
         ax.set_title(labels[loc])
     ax = fig.add_subplot(gs1[11])
-    c = plot_map(ax, yc, xc, baresoil, projection_parameters, vmin=0,
-                 cmap='Jet')
+    plot_map(ax, yc, xc, baresoil, projection_parameters, vmin=0, cmap='Jet')
     ax.set_title(labels[11])
 
     sm = plt.cm.ScalarMappable(cmap='Jet', norm=plt.normalize(vmin=0, vmax=1))

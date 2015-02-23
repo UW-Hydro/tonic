@@ -50,50 +50,70 @@ class Cols(object):
                                        ('lons', np.array([3])),
                                        ('infilt', np.array([4])),
                                        ('Ds', np.array([5])),
-                                       ('Dsmax',  np.array([6])),
+                                       ('Dsmax', np.array([6])),
                                        ('Ws', np.array([7])),
                                        ('c', np.array([8])),
-                                       ('expt', np.arange(9, nlayers+9)),
-                                       ('Ksat', np.arange(nlayers+9,
-                                                          2*nlayers+9)),
-                                       ('phi_s', np.arange(2*nlayers+9,
-                                                           3*nlayers+9)),
-                                       ('init_moist', np.arange(3*nlayers+9,
-                                                                4*nlayers+9)),
-                                       ('elev', np.array([4*nlayers+9])),
-                                       ('depth', np.arange(4*nlayers+10,
-                                                           5*nlayers+10)),
-                                       ('avg_T', np.array([5*nlayers+10])),
-                                       ('dp', np.array([5*nlayers+11])),
-                                       ('bubble', np.arange(5*nlayers+12,
-                                                            6*nlayers+12)),
-                                       ('quartz', np.arange(6*nlayers+12,
-                                                            7*nlayers+12)),
-                                       ('bulk_density', np.arange(7*nlayers+12,
-                                                                  8*nlayers+12)),
-                                       ('soil_density', np.arange(8*nlayers+12,
-                                                                  9*nlayers+12)),
-                                       ('off_gmt', np.array([9*nlayers+12])),
-                                       ('Wcr_FRACT', np.arange(9*nlayers+13,
-                                                                10*nlayers+13)),
-                                       ('Wpwp_FRACT', np.arange(10*nlayers+13,
-                                                                11*nlayers+13)),
-                                       ('rough', np.array([11*nlayers+13])),
-                                       ('snow_rough', np.array([11*nlayers+14])),
-                                       ('annual_prec',np.array([11*nlayers+15])),
-                                       ('resid_moist', np.arange(11*nlayers+16,
-                                                                 12*nlayers+16)),
-                                       ('fs_active',  np.array([12*nlayers+16])),
-                                       # ('gl_active',  np.array([12*nlayers+17]))
+                                       ('expt', np.arange(9, nlayers + 9)),
+                                       ('Ksat', np.arange(nlayers + 9,
+                                                          2 * nlayers + 9)),
+                                       ('phi_s', np.arange(2 * nlayers + 9,
+                                                           3 * nlayers + 9)),
+                                       ('init_moist', np.arange(3 * nlayers
+                                                                + 9,
+                                                                4 * nlayers +
+                                                                9)),
+                                       ('elev', np.array([4 * nlayers + 9])),
+                                       ('depth', np.arange(4 * nlayers + 10,
+                                                           5 * nlayers + 10)),
+                                       ('avg_T', np.array([5 * nlayers + 10])),
+                                       ('dp', np.array([5 * nlayers + 11])),
+                                       ('bubble', np.arange(5 * nlayers + 12,
+                                                            6 * nlayers + 12)),
+                                       ('quartz', np.arange(6 * nlayers + 12,
+                                                            7 * nlayers + 12)),
+                                       ('bulk_density', np.arange(7 * nlayers
+                                                                  + 12,
+                                                                  8 * nlayers
+                                                                  + 12)),
+                                       ('soil_density', np.arange(8 * nlayers
+                                                                  + 12,
+                                                                  9 * nlayers
+                                                                  + 12)),
+                                       ('off_gmt', np.array([9 * nlayers
+                                                            + 12])),
+                                       ('Wcr_FRACT', np.arange(9 * nlayers
+                                                               + 13,
+                                                               10 * nlayers
+                                                               + 13)),
+                                       ('Wpwp_FRACT', np.arange(10 * nlayers
+                                                                + 13,
+                                                                11 * nlayers
+                                                                + 13)),
+                                       ('rough', np.array([11 * nlayers
+                                                           + 13])),
+                                       ('snow_rough', np.array([11 * nlayers
+                                                                + 14])),
+                                       ('annual_prec', np.array([11 * nlayers
+                                                                + 15])),
+                                       ('resid_moist', np.arange(11 * nlayers
+                                                                 + 16,
+                                                                 12 * nlayers
+                                                                 + 16)),
+                                       ('fs_active', np.array([12 * nlayers
+                                                               + 16])),
                                        ])
 
         self.snow_param = OrderedDict([('cellnum', np.array([0])),
                                        ('AreaFract', np.arange(1,
-                                                               snow_bands+1)),
-                                       ('elevation', np.arange(snow_bands+1,
-                                                               2*snow_bands+1)),
-                                       ('Pfactor', np.arange(2*snow_bands+1,
-                                                             3*snow_bands+1))])
+                                                               snow_bands
+                                                               + 1)),
+                                       ('elevation', np.arange(snow_bands + 1,
+                                                               2 * snow_bands
+                                                               + 1)),
+                                       ('Pfactor', np.arange(2 * snow_bands
+                                                             + 1,
+                                                             3 * snow_bands
+                                                             + 1))])
 
         self.veglib = OrderedDict([('Veg_class', np.array([0])),
                                    ('lib_overstory', np.array([1])),
@@ -109,73 +129,71 @@ class Cols(object):
                                    ('lib_wind_atten', np.array(55)),
                                    ('lib_trunk_ratio', np.array(56)),
                                    ('lib_snow_albedo', np.array(57))])
-                                   #  'comment',  [57]}
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
-class format(object):
+class Format(object):
     def __init__(self, nlayers=3, snow_bands=5):
         self.soil_param = {'run_cell': '%1i',
                            'gridcell': '%1i',
-                           'lats': '%1.5f',
-                           'lons': '%1.5f',
-                           'infilt': '%1.6f',
-                           'Ds': '%1.6f',
-                           'Dsmax': '%1.6f',
-                           'Ws': '%1.6f',
-                           'c': '%1.6f',
-                           'expt': '%1.6f',
-                           'Ksat': '%1.6f',
-                           'phi_s': '%1.6f',
-                           'init_moist': '%1.6f',
-                           'elev': '%1.6f',
-                           'depth': '%1.6f',
-                           'avg_T': '%1.6f',
-                           'dp': '%1.6f',
-                           'bubble': '%1.6f',
-                           'quartz': '%1.6f',
-                           'bulk_density': '%1.6f',
-                           'soil_density': '%1.6f',
-                           'off_gmt': '%1.6f',
-                           'Wcr_FRACT': '%1.6f',
-                           'Wpwp_FRACT': '%1.6f',
-                           'rough': '%1.6f',
-                           'snow_rough': '%1.6f',
-                           'annual_prec': '%1.6f',
-                           'resid_moist': '%1.6f',
+                           'lats': '%12.7g',
+                           'lons': '%12.7g',
+                           'infilt': '%12.7g',
+                           'Ds': '%12.7g',
+                           'Dsmax': '%12.7g',
+                           'Ws': '%12.7g',
+                           'c': '%12.7g',
+                           'expt': '%12.7g',
+                           'Ksat': '%12.7g',
+                           'phi_s': '%12.7g',
+                           'init_moist': '%12.7g',
+                           'elev': '%12.7g',
+                           'depth': '%12.7g',
+                           'avg_T': '%12.7g',
+                           'dp': '%12.7g',
+                           'bubble': '%12.7g',
+                           'quartz': '%12.7g',
+                           'bulk_density': '%12.7g',
+                           'soil_density': '%12.7g',
+                           'off_gmt': '%12.7g',
+                           'Wcr_FRACT': '%12.7g',
+                           'Wpwp_FRACT': '%12.7g',
+                           'rough': '%12.7g',
+                           'snow_rough': '%12.7g',
+                           'annual_prec': '%12.7g',
+                           'resid_moist': '%12.7g',
                            'fs_active': '%1i',
                            'gl_active': '%1i'}
 
         self.snow_param = {'cellnum': '%1i',
-                           'AreaFract': '%1.6f',
-                           'elevation': '%1.6f',
-                           'Pfactor': '%1.6f'}
+                           'AreaFract': '%12.7g',
+                           'elevation': '%12.7g',
+                           'Pfactor': '%12.7g'}
 
         self.veglib = {'Veg_class': '%1i',
-                       'lib_overstory': '%1.6f',
-                       'lib_rarc': '%1.6f',
-                       'lib_rmin': '%1.6f',
-                       'lib_LAI': '%1.6f',
-                       'lib_albedo': '%1.6f',
-                       'lib_veg_rough': '%1.6f',
-                       'lib_displacement': '%1.6f',
-                       'lib_wind_h': '%1.6f',
-                       'lib_RGL': '%1.6f',
-                       'lib_rad_atten': '%1.6f',
-                       'lib_wind_atten': '%1.6f',
-                       'lib_trunk_ratio': '%1.6f',
-                       'lib_snow_albedo': '%1.6f'}
-                        #'comment': [57]}
+                       'lib_overstory': '%12.7g',
+                       'lib_rarc': '%12.7g',
+                       'lib_rmin': '%12.7g',
+                       'lib_LAI': '%12.7g',
+                       'lib_albedo': '%12.7g',
+                       'lib_veg_rough': '%12.7g',
+                       'lib_displacement': '%12.7g',
+                       'lib_wind_h': '%12.7g',
+                       'lib_RGL': '%12.7g',
+                       'lib_rad_atten': '%12.7g',
+                       'lib_wind_atten': '%12.7g',
+                       'lib_trunk_ratio': '%12.7g',
+                       'lib_snow_albedo': '%12.7g'}
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
-class desc(object):
-    def __init__(self, ORGANIC_FRACT=False, SPATIAL_FROST=False,
-                 SPATIAL_SNOW=False, EXCESS_ICE=False,
-                 JULY_TAVG_SUPPLIED=False, BLOWING_SNOW=False,
-                 GLOBAL_LAI=False):
+class Desc(object):
+    def __init__(self, organic_fract=False, spatial_frost=False,
+                 spatial_snow=False, excess_ice=False,
+                 july_tavg_supplied=False, blowing_snow=False,
+                 global_lai=False):
         self.soil_param = {'run_cell': '1 = Run Grid Cell, 0 = Do Not Run',
                            'gridcell': 'Grid cell number',
                            'lats': 'Latitude of grid cell',
@@ -266,8 +284,8 @@ class desc(object):
                                    'type (~100 s/m)',
                        'lib_LAI': 'Leaf-area index of vegetation type',
                        'lib_albedo': 'Shortwave albedo for vegetation type',
-                       'lib_veg_rough': 'Vegetation roughness length (typically '
-                                    '0.123 * vegetation height)',
+                       'lib_veg_rough': 'Vegetation roughness length ('
+                                        'typically 0.123 * vegetation height)',
                        'lib_displacement': 'Vegetation displacement height '
                                            '(typically 0.67 * vegetation '
                                            'height)',
@@ -304,41 +322,15 @@ class desc(object):
                           'root_fract': 'Fraction of root in the current root '
                                         'zone.',
                           'LAI': 'Leaf Area Index, one per month'}
-
-        # if ORGANIC_FRACT:
-        #     self.soil_param['organic'] = 'Fraction of soil layer that is organic'
-        #     self.soil_param['bul_dens_org'] = 'Bulk density of organic portion of soil'
-        #     self.soil_param['soil_dens_org'] = 'Soil particle density of organic portion of soil, normally 1300 kg/m3 '
-
-        # if SPATIAL_FROST:
-        #     self.soil_param['frost_slope'] = 'Slope of uniform distribution of soil temperature'
-
-        # if SPATIAL_SNOW:
-        #     self.soil_param['max_snow_distrib_slope'] = 'Maximum slope of the snow depth distribution.'
-
-        # if EXCESS_ICE:
-        #     self.soil_param['initial_ice_content'] = 'Initial volumetric ice content in soil '
-
-        # if JULY_TAVG_SUPPLIED:
-        #     self.soil_param['July_Tavg'] = 'Average July air temperature, used for treeline computations'
-
-        # if BLOWING_SNOW:
-        #     self.veg_param['sigma_slope'] = 'Standard deviation of terrain slopes within vegetation tile'
-        #     self.veg_param['lag_one'] = 'Standard deviation of terrain slopes within vegetation tile'
-        #     self.veg_param['fetch'] = 'Standard deviation of terrain slopes within vegetation tile'
-
-        # if GLOBAL_LAI:
-        #     print 'global lai included'
-        #     self.veg_param['LAI'] = 'Leaf Area Index, one per month'
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
-class units(object):
-    def __init__(self, ORGANIC_FRACT=False, SPATIAL_FROST=False,
-                 SPATIAL_SNOW=False, EXCESS_ICE=False,
-                 JULY_TAVG_SUPPLIED=False, BLOWING_SNOW=False,
-                 GLOBAL_LAI=False):
+class Units(object):
+    def __init__(self, organic_fract=False, spatial_frost=False,
+                 spatial_snow=False, excess_ice=False,
+                 july_tavg_supplied=False, blowing_snow=False,
+                 global_lai=False):
 
         self.soil_param = {'run_cell': 'N/A',
                            'gridcell': 'N/A',
@@ -398,29 +390,29 @@ class units(object):
                           'root_depth': 'm',
                           'root_fract': 'fraction',
                           'LAI': 'N/A'}
-        # if ORGANIC_FRACT:
+        # if organic_fract:
         #     self.soil_param['organic'] = 'fraction'
         #     self.soil_param['bul_dens_org'] = 'kg/m3'
         #     self.soil_param['soil_dens_org'] = 'kg/m3 '
 
-        # if SPATIAL_FROST:
+        # if spatial_frost:
         #     self.soil_param['frost_slope'] = 'C'
 
-        # if SPATIAL_SNOW:
+        # if spatial_snow:
         #     self.soil_param['max_snow_distrib_slope'] = 'm'
 
-        # if EXCESS_ICE:
+        # if excess_ice:
         #     self.soil_param['initial_ice_content'] = 'N/A'
 
-        # if JULY_TAVG_SUPPLIED:
+        # if july_tavg_supplied:
         #     self.soil_param['July_Tavg'] = 'C'
 
-        # if BLOWING_SNOW:
+        # if blowing_snow:
         #     self.veg_param['sigma_slope'] = 'N/A'
         #     self.veg_param['lag_one'] = 'N/A'
         #     self.veg_param['fetch'] = 'm'
 
-        #     if GLOBAL_LAI:
+        #     if global_lai:
         #         self.veg_param['LAI'] = 'N/A'
 # -------------------------------------------------------------------- #
 
@@ -463,7 +455,7 @@ def make_grid(grid_file, soil_file, snow_file, veg_file, vegl_file,
         snow_dict = False
 
     if veg_file:
-        veg_dict = veg(veg_file, soil_dict, LAIindex=True)
+        veg_dict = veg(veg_file, soil_dict, lai_index=True)
     else:
         veg_dict = False
 
@@ -517,28 +509,28 @@ def calc_grid(lats, lons, decimals=4):
     if lon_step != lat_step:
         print('WARNING: lon_step ({0}) and lat_step ({1}) do not '
               'match'.format(lon_step, lat_step))
-    if lat_count/len(ulats) < 0.95:
+    if lat_count / len(ulats) < 0.95:
         print('WARNING: lat_count of mode is less than 95% ({0}%) of'
-              ' len(lats)'.format(lat_count/len(ulats)))
-    if lon_count/len(ulons) < 0.95:
+              ' len(lats)'.format(lat_count / len(ulats)))
+    if lon_count / len(ulons) < 0.95:
         print('WARNING: lon_count of mode is less than 95% ({0}%) of'
-              ' len(lons)'.format(lon_count/len(ulons)))
+              ' len(lons)'.format(lon_count / len(ulons)))
 
     if lats.min() < -55 and lats.max() > 70:
         # assume global grid
         print('assuming grid is meant to be global...')
-        target_grid[XVAR] = np.linspace(-180+lon_step[0]/2,
-                                        180-lon_step[0]/2,
-                                        360/lon_step[0])
-        target_grid[YVAR] = np.linspace(-90+lat_step[0]/2,
-                                        90-lat_step[0]/2,
-                                        180/lat_step[0])
+        target_grid[XVAR] = np.linspace(-180 + lon_step[0] / 2,
+                                        180 - lon_step[0] / 2,
+                                        360 / lon_step[0])
+        target_grid[YVAR] = np.linspace(-90 + lat_step[0] / 2,
+                                        90 - lat_step[0] / 2,
+                                        180 / lat_step[0])
     else:
         target_grid[XVAR] = np.arange(lons.min(),
-                                      lons.max()+lon_step[0],
+                                      lons.max() + lon_step[0],
                                       lon_step[0])
         target_grid[YVAR] = np.arange(lats.min(),
-                                      lats.max()+lat_step[0],
+                                      lats.max() + lat_step[0],
                                       lat_step[0])
 
     y, x = latlon2yx(lats, lons, target_grid[YVAR],
@@ -751,14 +743,14 @@ def write_netcdf(myfile, target_attrs, target_grid,
     f.username = getuser()
     f.host = socket.gethostname()
 
-    unit = units(GLOBAL_LAI=True)
-    desc = desc()
+    unit = Units(global_lai=True)
+    desc = Desc()
 
     # target grid
     # coordinates
     if target_grid[XVAR].ndim == 1:
-        x = f.createDimension('lon', len(target_grid[XVAR]))
-        y = f.createDimension('lat', len(target_grid[YVAR]))
+        f.createDimension('lon', len(target_grid[XVAR]))
+        f.createDimension('lat', len(target_grid[YVAR]))
         dims2 = ('lat', 'lon', )
         coordinates = None
 
@@ -773,8 +765,8 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v.long_name = "longitude of grid cell center"
 
     else:
-        x = f.createDimension('nj', target_grid[XVAR].shape[0])
-        y = f.createDimension('ni', target_grid[YVAR].shape[1])
+        f.createDimension('nj', target_grid[XVAR].shape[0])
+        f.createDimension('ni', target_grid[YVAR].shape[1])
         dims2 = ('nj', 'ni', )
         coordinates = "{0} {1}".format(XVAR, YVAR)
 
@@ -788,7 +780,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
         # corners
         if ('xv' in target_grid) and ('yv' in target_grid):
-            nv4 = f.createDimension('nv4', 4)
+            f.createDimension('nv4', 4)
             dims_corner = ('nv4', 'nj', 'ni', )
 
             v = f.createVariable('xv', NC_DOUBLE, dims_corner)
@@ -813,7 +805,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                 print('dont have units or description for {0}'.format(var))
 
     # Layers
-    layers = f.createDimension('nlayer', soil_grid['soil_density'].shape[0])
+    f.createDimension('nlayer', soil_grid['soil_density'].shape[0])
     layer_dims = ('nlayer', ) + dims2
 
     # soil grid
@@ -849,8 +841,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         except:
             pass
 
-        snowbnds = f.createDimension('snow_band',
-                                     snow_grid['AreaFract'].shape[0])
+        f.createDimension('snow_band', snow_grid['AreaFract'].shape[0])
         snow_dims = ('snow_band', ) + dims2
 
         for var, data in snow_grid.items():
@@ -878,9 +869,9 @@ def write_netcdf(myfile, target_attrs, target_grid,
         except:
             pass
 
-        veg_type = f.createDimension('veg_class', veg_grid['Cv'].shape[0])
-        root_zone = f.createDimension('root_zone', 3)
-        month = f.createDimension('month', 12)
+        f.createDimension('veg_class', veg_grid['Cv'].shape[0])
+        f.createDimension('root_zone', 3)
+        f.createDimension('month', 12)
 
         v = f.createVariable('month', NC_INT, ('month', ))
         v[:] = np.arange(1, 13)
@@ -1002,8 +993,8 @@ def snow(snow_file, soil_dict, snow_bands=5):
 
 
 # -------------------------------------------------------------------- #
-def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
-        cells=False, BLOWING_SNOW=False, LAIindex=False):
+def veg(veg_file, soil_dict, max_roots=3, veg_classes=11,
+        cells=False, blowing_snow=False, lai_index=False):
     """
     Read the vegetation file from vegFile.  Assumes max length for rootzones
     and vegclasses.  Also reorders data to match gridcell order of soil file.
@@ -1018,17 +1009,17 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
         cells = len(lines)
 
     gridcel = np.zeros(cells)
-    Nveg = np.zeros(cells)
-    Cv = np.zeros((cells, vegClasses))
-    root_depth = np.zeros((cells, vegClasses, maxRoots))
-    root_fract = np.zeros((cells, vegClasses, maxRoots))
-    if BLOWING_SNOW:
-        sigma_slope = np.zeros((cells, vegClasses))
-        lag_one = np.zeros((cells, vegClasses))
-        fetch = np.zeros((cells, vegClasses))
-    if LAIindex:
+    nveg = np.zeros(cells)
+    cv = np.zeros((cells, veg_classes))
+    root_depth = np.zeros((cells, veg_classes, max_roots))
+    root_fract = np.zeros((cells, veg_classes, max_roots))
+    if blowing_snow:
+        sigma_slope = np.zeros((cells, veg_classes))
+        lag_one = np.zeros((cells, veg_classes))
+        fetch = np.zeros((cells, veg_classes))
+    if lai_index:
         lfactor = 2
-        LAI = np.zeros((cells, vegClasses, 12))
+        lai = np.zeros((cells, veg_classes, 12))
     else:
         lfactor = 1
 
@@ -1037,22 +1028,22 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
 
     while row < len(lines):
         line = lines[row].strip('\n').split(' ')
-        gridcel[cell], Nveg[cell] = np.array(line).astype(int)
-        numrows = Nveg[cell]*lfactor + row
+        gridcel[cell], nveg[cell] = np.array(line).astype(int)
+        numrows = nveg[cell] * lfactor + row
         row += 1
 
         while row < numrows:
             lines[row] = lines[row].strip()
             line = lines[row].strip('\n').split(' ')
             temp = np.array(line).astype(float)
-            vind = int(temp[0])-1
-            Cv[cell, vind] = temp[1]
+            vind = int(temp[0]) - 1
+            cv[cell, vind] = temp[1]
 
-            if not BLOWING_SNOW:
-                rind = (len(temp)-2)/2
+            if not blowing_snow:
+                rind = (len(temp) - 2) / 2
 
             else:
-                rind = (len(temp)-5)/2
+                rind = (len(temp) - 5) / 2
                 sigma_slope[cell, vind, :rind] = temp[-3]
                 lag_one[cell, vind, :rind] = temp[-2]
                 fetch[cell, vind, :rind] = temp[-1]
@@ -1060,26 +1051,26 @@ def veg(veg_file, soil_dict, maxRoots=3, vegClasses=11,
             root_depth[cell, vind, :rind] = temp[2::2]
             root_fract[cell, vind, :rind] = temp[3::2]
             row += 1
-            if LAIindex:
+            if lai_index:
                 lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
-                LAI[cell, vind, :] = np.array(line).astype(float)
+                lai[cell, vind, :] = np.array(line).astype(float)
                 row += 1
         cell += 1
     veg_dict = OrderedDict()
     veg_dict['gridcell'] = gridcel[:cell]
-    veg_dict['Nveg'] = Nveg[:cell]
-    veg_dict['Cv'] = Cv[:cell, :]
+    veg_dict['Nveg'] = nveg[:cell]
+    veg_dict['Cv'] = cv[:cell, :]
     veg_dict['root_depth'] = root_depth[:cell, :]
     veg_dict['root_fract'] = root_fract[:cell, :]
 
-    if BLOWING_SNOW:
+    if blowing_snow:
         veg_dict['sigma_slope'] = sigma_slope[:cell, :]
         veg_dict['lag_one'] = lag_one[:cell, :]
         veg_dict['fetch'] = fetch[:cell, :]
 
-    if LAIindex:
-        veg_dict['LAI'] = LAI[:cell, :, :]
+    if lai_index:
+        veg_dict['LAI'] = lai[:cell, :, :]
 
     inds = []
     for sn in soil_dict['gridcell']:

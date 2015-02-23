@@ -105,30 +105,16 @@ Notes about RASM soil parameter file generations:
     c = grid_params.cols(nlayers=3)
     f = grid_params.format(nlayers=3)
 
+    c.soil_param['Nveg'] = np.array([0])
+    f.soil_param['Nveg'] = '%1i'
+
     numcells = data['mask'].size
 
-    arrayshape = (numcells, 2 + np.max([np.max(c.soil_param[var])
-                                        for var in c.soil_param]))
+    arrayshape = (numcells, 1 + np.max([np.max(cols) for v, cols in
+                                        c.soil_param.iteritems()]))
     soil_params = np.empty(arrayshape)
     dtypes = ['%1i'] * arrayshape[1]
     # ---------------------------------------------------------------- #
-
-    # # ---------------------------------------------------------------- #
-    # # make a dummy line of fill values for unused gridcells
-    # dummy = np.zeros(arrayshape[1])+FILL_VALUE
-    # dummy[0] = 0
-    # dummy[c.soil_param['init_moist'] + 1] = 9999
-    # dummy[c.soil_param['resid_moist'] + 1] = 0
-    # dummy[c.soil_param['quartz'] + 1] = 0
-    # dummy[c.soil_param['depth'] + 1] = 9999
-    # dummy[c.soil_param['avg_T'] + 1] = 99
-    # dummy[c.soil_param['avg_T'] + 1] = 0
-    # dummy[c.soil_param['bulk_density'] + 1] = 9998
-    # dummy[c.soil_param['soil_density'] + 1] = 9999
-    # dummy[c.soil_param['fs_active'] + 1] = 1
-
-    # print('filling all ocean grid cells with dummy line')
-    # # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
     # find nearest real grid cell for all grid cells where frozen soil mask is
@@ -157,14 +143,15 @@ Notes about RASM soil parameter file generations:
 
     # loop over all variables and fill in values
     for var in c.soil_param:
-        # unmask the variable
-        data[var] = np.array(data[var])
-        # fill with nearest data
-        if data[var].ndim == 2:
-            data[var][fy, fx] = data[var][ry[inds], rx[inds]]
-
-        elif data[var].ndim == 3:
-            data[var][:, fy, fx] = data[var][:, ry[inds], rx[inds]]
+        if var not in ['run_cell', 'grid_cell', 'lats', 'lons', 'fs_active',
+                       'Nveg']:
+            # unmask the variable
+            data[var] = np.array(data[var])
+            # fill with nearest data
+            if data[var].ndim == 2:
+                data[var][fy, fx] = data[var][ry[inds], rx[inds]]
+            elif data[var].ndim == 3:
+                data[var][:, fy, fx] = data[var][:, ry[inds], rx[inds]]
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -203,56 +190,32 @@ Notes about RASM soil parameter file generations:
     # For rasm, all cols are shifted one to right to make room for nveg in
     # col 0
     i = -1
-    print_flag = 0
+    for var, cols in c.soil_param.iteritems():
+        for col in cols:
+            dtypes[col] = f.soil_param[var]
+
     for (y, x), maskval in np.ndenumerate(data['mask']):
         # advance the row count
         i += 1
 
-        # fill with dummy (to be safe)
-        # soil_params[i, :] = dummy
-
-        print_flag += 1
         # put real data
         for var in c.soil_param:
 
             cols = c.soil_param[var]
 
             if data[var].ndim == 2:
-                if print_flag == 1:
-                    for col in cols:
-                        dtypes[col + 1] = f.soil_param[var]
-
-                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
-                          ' {3:<09.3f}'.format(var,
-                                               data[var][yinds, xinds].min(),
-                                               data[var][yinds, xinds].max(),
-                                               data[var][yinds, xinds].mean()))
-
-                soil_params[i, c.soil_param[var] + 1] = data[var][y, x]
-
+                soil_params[i, cols] = data[var][y, x]
             elif data[var].ndim == 3:
-                if print_flag == 1:
-                    for col in cols:
-                        dtypes[col + 1] = f.soil_param[var]
-
-                    print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
-                          ' {3:<09.3f}'.format(var,
-                                               data[var][:, yinds,
-                                                         xinds].min(),
-                                               data[var][:, yinds,
-                                                         xinds].max(),
-                                               data[var][:, yinds,
-                                                         xinds].mean()))
-
                 for j, col in enumerate(cols):
-                    soil_params[i, col + 1] = data[var][j, y, x]
-
-                if var == 'phi_s':
-                    soil_params[:, c.soil_param['phi_s'] + 1] = -999
+                    soil_params[i, col] = data[var][j, y, x]
 
         # write the grid cell number
         soil_params[i, 2] = i + 1
+    # ---------------------------------------------------------------- #
 
+    # ---------------------------------------------------------------- #
+    # Write phi_s
+    soil_params[:, c.soil_param['phi_s']] = -999
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -275,28 +238,52 @@ Notes about RASM soil parameter file generations:
     assert soil_params[-1, 4] == data['lons'][y, x]
     # ---------------------------------------------------------------- #
 
-    # # ---------------------------------------------------------------- #
-    # # check for nans
-    # # sometimes RASM has land grid cells that the input file does not.
-    # # In this case, we will use the previous lnd grid cell
-    # for i, cell in enumerate(soil_params):
-    #     if np.isnan(np.sum(cell)):
-    #         print(cell)
-    #         print('fixing nan values in row {}'.format(i))
-    #         j = i
-    #         while True:
-    #             j -= 1
-    #             if (FILL_VALUE not in soil_params[j, :]):
-    #                 soil_params[i, :] = soil_params[j, :]
-    #                 print('replacing with row {}'.format(j))
-    #                 break
-    # # ---------------------------------------------------------------- #
+    # ---------------------------------------------------------------- #
+    # check for nans
+    # sometimes RASM has land grid cells that the input file does not.
+    # In this case, we will use the previous lnd grid cell
+    if np.isnan(soil_params.sum()):
+        bad_cells = []
+        replacements = []
+        for i, cell in enumerate(soil_params):
+            if np.isnan(np.sum(cell)):
+                bad_cells.append(i)
+                j = i
+                while True:
+                    j -= 1
+                    if (FILL_VALUE not in soil_params[j, :]) and \
+                            not np.isnan(np.sum(soil_params[j, :])):
+                        soil_params[i, 5:] = soil_params[j, 5:]
+                        replacements.append(j)
+                        break
+        print('Fixed {0} bad cells'.format(len(bad_cells)))
+        print('Example: {0}-->{1}'.format(bad_cells[0], replacements[0]))
+    # ---------------------------------------------------------------- #
 
+    # ---------------------------------------------------------------- #
+    # Print summary of variables
+    for var, cols in c.soil_param.iteritems():
+        print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
+              ' {3:<09.3f}'.format(var,
+                                   soil_params[:, cols].min(),
+                                   soil_params[:, cols].max(),
+                                   soil_params[:, cols].mean()))
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # Finish up
+    assert soil_params[-1, 3] == data['lats'][y, x]
+    assert soil_params[-1, 4] == data['lons'][y, x]
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # Write the file
     print('writing soil parameter file: {0}'.format(soil_file))
 
     np.savetxt(soil_file, soil_params, fmt=dtypes)
 
     print('done RASM with soil')
+    # ---------------------------------------------------------------- #
 
     return
 # -------------------------------------------------------------------- #

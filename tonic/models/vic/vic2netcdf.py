@@ -773,6 +773,22 @@ def vic2nc(options, global_atts, domain_dict, fields):
                     bin_mults.append(1.0)
 
     print('setting point attributes (fileformat, names, usecols, and dtypes)')
+    # pandas.read_table does not 'honor' the order of the columns in usecols
+    # it simply uses them in ascending order. So the names need to be sorted
+    # the same way. For example, if the columns in the VIC file are:
+    # 3: prcp; 4: evap; 5: runoff; 6; baseflow; 7: sm1; 8: sm2; 9: sm3; 10: swe
+    # and this is parsed from the configuration file as
+    # usecols = [3, 4, 5, 6, 10, 7, 8, 9]
+    # names=['prcp', 'evap', 'runoff', 'baseflow', 'swe', 'sm1', 'sm2', 'sm3']
+    # then without sorting, the netcdf file will have the wrong variables:
+    # nc_swe will contain sm1, nc_sm1 will contain sm2, nc_sm2: sm3 and
+    # nc_swe: sm3
+    # the following will ensure that the names are sorted in increasing column
+    # order. Note that sorted(usecols) is not strictly necessary, since
+    # apparently that is done in read_table, but it keeps the names and columns
+    # in the same order
+    names = [x for (y, x) in sorted(zip(usecols, names))]
+    usecols = sorted(usecols)
     points.set_names(names)
     points.set_usecols(usecols)
     points.set_dtypes(dtypes)

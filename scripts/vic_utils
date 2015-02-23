@@ -1,0 +1,222 @@
+#!/usr/bin/env python
+# PYTHON_ARGCOMPLETE_OK
+
+"""tonic - vic_utils command line interface"""
+from __future__ import print_function
+import argparse
+import subprocess
+from tonic import version
+from tonic.models.vic import netcdf2vic, compare_soil_params, grid_params, \
+    ncparam2ascii, vic2netcdf
+
+
+# -------------------------------------------------------------------- #
+def main():
+    """
+    Get the script and path to the config_file
+    """
+    # ---------------------------------------------------------------- #
+    # create the top-level parser
+    format = lambda prog: argparse.HelpFormatter(prog, max_help_position=25)
+
+    parser = argparse.ArgumentParser(prog='vic_utils',
+                                     description='vic_utils command line '
+                                                 'interface.',
+                                     formatter_class=format)
+    parser.add_argument('--version', action='version',
+                        version=version.short_version)
+    subparsers = parser.add_subparsers(title='vic_utils subcommands')
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # create the parser for the "netcdf2vic" command
+    netcdf2vic_parser = subparsers.add_parser('netcdf2vic',
+                                              help=netcdf2vic.help,
+                                              description=netcdf2vic.description)
+    netcdf2vic_parser.set_defaults(func=netcdf2vic._run)
+    netcdf2vic_parser.add_argument("config",
+                                   type=str,
+                                   help="Input netcdf2vic Configuration File")
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # create the parser for the "grid_params" command
+    grid_params_parser = subparsers.add_parser('grid_params',
+                                               help=grid_params.help,
+                                               description=grid_params.description)
+    grid_params_parser.set_defaults(func=grid_params._run)
+    grid_params_parser.add_argument("soil_file",
+                                    type=str,
+                                    help="Input file containing soil parameter"
+                                         " data in standard VIC format")
+    grid_params_parser.add_argument("-g", "--grid_file",
+                                    type=str,
+                                    help="Input netCDF target grid",
+                                    default=None)
+    grid_params_parser.add_argument("-e", "--snow_file",
+                                    type=str,
+                                    help="Input file containing snowband/"
+                                         "elevation band data in standard VIC "
+                                         "format",
+                                    default=None)
+    grid_params_parser.add_argument("-v", "--veg_file",
+                                    type=str,
+                                    help="Input file containing vegitation "
+                                         "parameter data "
+                                         "in standard VIC format",
+                                    default=None)
+    grid_params_parser.add_argument("-l", "--vegl_file",
+                                    type=str,
+                                    help="Input file containing vegitation "
+                                         "library data in"
+                                         " standard VIC format",
+                                    default=None)
+    grid_params_parser.add_argument("-o", "--out_file",
+                                    type=str,
+                                    help="Output file name, "
+                                         "(default=/params.nc)",
+                                    default='params.nc')
+
+    grid_params_parser.add_argument("--VIC_version",
+                                    type=str,
+                                    help="VIC version to write parameter file "
+                                         "for",
+                                    choices=['4.1.2', '5.0.dev'],
+                                    default='4.1.2')
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # create the parser for the "ncparam2ascii" command
+    ncparam2ascii_parser = subparsers.add_parser('ncparam2ascii',
+                                                 help=ncparam2ascii.help,
+                                                 description=ncparam2ascii.description)
+    ncparam2ascii_parser.set_defaults(func=ncparam2ascii._run)
+    ncparam2ascii_parser.add_argument("nc_params",
+                                      type=str,
+                                      help="Input netCDF VIC parameter file")
+    ncparam2ascii_parser.add_argument("--soil_prefix",
+                                      type=str,
+                                      help="Output soil param file prefix "
+                                           "(default is same as nc_params)",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("--veg_prefix",
+                                      type=int,
+                                      help="Output veg param file prefix",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("-UL", "--upper_left_corner",
+                                      type=int,
+                                      help="Upper left corner for subset",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("-LR", "--lower_right_corner",
+                                      type=int,
+                                      help="Lower right corner for subset",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("--outfiles",
+                                      type=int,
+                                      help="Number of outfiles",
+                                      default=1)
+    ncparam2ascii_parser.add_argument("--snow_file",
+                                      type=str,
+                                      help="Name of output snow file",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("--veg_file",
+                                      type=str,
+                                      help="Name of output veg_file",
+                                      default=False)
+    ncparam2ascii_parser.add_argument("--project",
+                                      type=str,
+                                      help='Use project configuration options',
+                                      choices=['RASM'])
+    ncparam2ascii_parser.add_argument("--NIJSSEN2ARNO",
+                                      help='Convert soil parameters from '
+                                           'NIJSSEN2001 format to ARNO format',
+                                      action='store_true')
+    ncparam2ascii_parser.add_argument("--ARNO2NIJSSEN",
+                                      help='Convert soil parameters from '
+                                           'ARNO format to NIJSSEN2001 format',
+                                      action='store_true')
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # create the parser for the "compare_soil_params" command
+    compare_soil_params_parser = subparsers.add_parser('compare_soil_params',
+                                                       help=compare_soil_params.help,
+                                                       description=compare_soil_params.description)
+    compare_soil_params_parser.set_defaults(func=compare_soil_params._run)
+
+    compare_soil_params_parser.add_argument("-d", "--domain_file",
+                                            type=str,
+                                            help="Input netCDF target grid",
+                                            required=True)
+
+    compare_soil_params_parser.add_argument("-s1", "--soil_file1",
+                                            type=str,
+                                            help="Input file containing soil "
+                                                 "parameter",
+                                            required=True)
+    compare_soil_params_parser.add_argument("-s2", "--soil_file2",
+                                            type=str,
+                                            help="Input file containing soil "
+                                                 "parameter",
+                                            required=True)
+    compare_soil_params_parser.add_argument("-o", "--out_path",
+                                            type=str,
+                                            help="outpath for files",
+                                            default='./')
+    compare_soil_params_parser.add_argument("-t1", "--title1",
+                                            type=str,
+                                            help="Input tile for soil_file1",
+                                            default=None)
+    compare_soil_params_parser.add_argument("-t2", "--title2",
+                                            type=str,
+                                            help="Input tile for soil_file2",
+                                            default=None)
+    # ---------------------------------------------------------------- #
+
+    # ---------------------------------------------------------------- #
+    # create the parser for the "vic2netcdf" command
+    vic2netcdf_parser = subparsers.add_parser('vic2netcdf',
+                                              help=vic2netcdf.help,
+                                              description=vic2netcdf.description)
+    vic2netcdf_parser.set_defaults(func=vic2netcdf._run)
+    vic2netcdf_parser.add_argument("config_file",
+                                   type=str,
+                                   help="Input vic2netcdf Configuration File")
+    vic2netcdf_parser.add_argument("--create_batch", type=str,
+                                   choices=['days', 'months',
+                                            'years', 'variables'],
+                                   default=False,
+                                   help="Create a batch of config files")
+    vic2netcdf_parser.add_argument("--batch_dir", type=str, default="./",
+                                   help="Location to put batch config files")
+    # ---------------------------------------------------------------- #
+
+    # argcomplete.autocomplete(parser)
+    args = parser.parse_args()
+    try:
+        args.func(args)
+    except AttributeError:
+        parser.print_help()
+    return
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
+# completer for subparsers
+def complete_subparser_action(prefix, **kwargs):
+    internal_actions = ['vic2netcdf', 'netcdf2vic']
+    if prefix and any(action.startswith(prefix)
+                      for action in internal_actions):
+        return internal_actions
+    else:
+        external_actions = subprocess.check_output("compgen -c " + prefix,
+                                                   shell=True,
+                                                   executable='/bin/bash')
+        external_actions = [a.decode() for a in external_actions.splitlines()]
+        return internal_actions + external_actions
+# -------------------------------------------------------------------- #
+
+# -------------------------------------------------------------------- #
+if __name__ == "__main__":
+    main()
+# -------------------------------------------------------------------- #

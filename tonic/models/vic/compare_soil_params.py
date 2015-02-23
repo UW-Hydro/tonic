@@ -5,19 +5,19 @@ compare_soil_params.py
 Takes two netcdf soil parameter datasets and plots/compares the variables
 
 """
-
 from __future__ import print_function
 import os
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from matplotlib import cm
-from mpl_toolkits.basemap import Basemap
-from netCDF4 import Dataset
-import matplotlib.colors as mcolors
-import argparse
 from matplotlib import rcParams
+from tonic.io import read_netcdf
+from tonic.plot_utils import sub_plot_pcolor, cmap_discretize
+
+description = 'Create plots comparing two sets of VIC soil parameters'
+help = 'Create plots comparing two sets of VIC soil parameters'
+
 rcParams.update({'figure.autolayout': True})
 
 projection = {'urcrnrlat': 27.511827255753555,
@@ -30,14 +30,20 @@ projection = {'urcrnrlat': 27.511827255753555,
               'lat_0': 90}
 
 
-def main(projection=None, plot_atts_3=None, plot_atts_9=None):
+def _run(args, ):
 
-    domain_file, soil_file1, soil_file2, \
-        out_path, title1, title2 = process_command_line()
+    print(args)
+    print('in compare_soil_params')
 
-    dom, dom_atts = read_netcdf(domain_file)
-    d1, d1a = read_netcdf(soil_file1)
-    d2, d2a = read_netcdf(soil_file2)
+    plot_atts_3 = None
+    plot_atts_9 = None
+
+    dom, dom_atts = read_netcdf(args.domain_file)
+    d1, d1a = read_netcdf(args.soil_file1)
+    d2, d2a = read_netcdf(args.soil_file2)
+    out_path = args.out_path
+    title1 = args.title1
+    title2 = args.title2
 
     if not plot_atts_3:
         plot_atts_3 = {'infilt': {'vmin': 0,
@@ -80,8 +86,6 @@ def main(projection=None, plot_atts_3=None, plot_atts_9=None):
                                        'amin': -500,
                                        'amax': 500,
                                        'amap': cmap_discretize('cm.RdBu')}}
-                       # 'Nveg': {'vmin': 0, 'vmax': 10, 'amin': -2, 'amax': 2,
-                            # 'amap': cmap_discretize('cm.RdBu_r')}}
 
     if not plot_atts_9:
         plot_atts_9 = {'soil_density': {'vmin': 0,
@@ -220,10 +224,10 @@ def my_plot3(lons, lats, d1, d2, units=None,
     d1 = np.ma.masked_where(mask, d1)
     d2 = np.ma.masked_where(mask, d2)
 
-    anom = d1-d2
+    anom = d1 - d2
 
     if amin is None:
-        amin = -1*np.max(np.abs(anom))
+        amin = -1 * np.max(np.abs(anom))
     if amax is None:
         amax = np.max(np.abs(anom))
 
@@ -245,6 +249,7 @@ def my_plot3(lons, lats, d1, d2, units=None,
     return f
 
 
+# -------------------------------------------------------------------- #
 def my_plot9(lons, lats, d1, d2, units=None,
              vmin=None, vmax=None, amin=None,
              amax=None, mask=True, amap=None,
@@ -255,9 +260,9 @@ def my_plot9(lons, lats, d1, d2, units=None,
     if vmax is None:
         vmax = d1.max()
 
-    anom = d1-d2
+    anom = d1 - d2
     if amin is None:
-        amin = -1*np.max(np.abs(anom))
+        amin = -1 * np.max(np.abs(anom))
     if amax is None:
         amax = np.max(np.abs(anom))
 
@@ -289,154 +294,4 @@ def my_plot9(lons, lats, d1, d2, units=None,
                         title='Difference (A-B)', units=units,
                         cbar_location='right', vmin=amin, vmax=amax)
     return f
-
-
-def sub_plot_pcolor(lons, lats, data, title=None, cmap=cm.jet,
-                    vmin=None, vmax=None, cbar=True, cbar_location='bottom',
-                    units=None, ncolors=5):
-
-    if vmin is None:
-        vmin = data.min()
-    if vmax is None:
-        vmax = data.max()
-
-    m = Basemap(**projection)
-    m.drawlsmask(land_color='grey', lakes=False)
-    xi, yi = m(np.squeeze(lons), np.squeeze(lats))
-    sp = m.pcolormesh(xi, yi, np.squeeze(data), vmin=vmin, vmax=vmax,
-                      cmap=cmap)
-    m.drawparallels(np.arange(-80., 81., 20.))
-    m.drawmeridians(np.arange(-180., 181., 20.))
-    m.drawcoastlines(color='k', linewidth=0.25)
-    if title:
-        plt.title(title, size=13)
-    if cbar:
-        cmap = cmap_discretize(cmap, ncolors)
-        mappable = cm.ScalarMappable(cmap=cmap)
-        mappable.set_array([])
-        mappable.set_clim(-0.5, ncolors+0.5)
-        colorbar = m.colorbar(mappable, location=cbar_location)
-        colorbar.set_ticks(np.linspace(0, ncolors, ncolors))
-        colorbar.set_ticklabels(np.linspace(vmin, vmax, ncolors))
-        colorbar.set_label(units)
-    return sp
-
-
-def cmap_discretize(cmap, N=9):
-    """Return a discrete colormap from the continuous colormap cmap.
-
-        cmap: colormap instance, eg. cm.jet.
-        N: number of colors.
-
-    Example
-        x = resize(arange(100), (5,100))
-        djet = cmap_discretize(cm.jet, 5)
-        imshow(x, cmap=djet)
-    """
-
-    if type(cmap) == str:
-        cmap = cm.get_cmap(eval(cmap))
-    colors_i = np.concatenate((np.linspace(0, 1., N), (0., 0., 0., 0.)))
-    colors_rgba = cmap(colors_i)
-    indices = np.linspace(0, 1., N+1)
-    cdict = {}
-    for ki, key in enumerate(('red', 'green', 'blue')):
-        cdict[key] = [(indices[i], colors_rgba[i-1, ki], colors_rgba[i, ki])
-                      for i in xrange(N+1)]
-    # Return colormap object.
-    return mcolors.LinearSegmentedColormap(cmap.name + "_%d" % N, cdict, 1024)
-
-
-def read_netcdf(nc_file, variables=[], coords=False, verbose=False):
-    """
-    Read data from input netCDF. Will read all variables if none provided.
-    Will also return all variable attributes.
-    Both variables (data and attributes) are returned as dictionaries named by
-    variable.
-    """
-    if verbose:
-        print('Reading input data variables:'
-              ' {0} from file: {1)'.format(variables, nc_file))
-
-    f = Dataset(nc_file, 'r')
-
-    if variables == []:
-        variables = f.variables.keys()
-
-    d = {}
-    a = {}
-
-    if coords:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][coords]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][coords]
-                a[var] = f.variables[var].__dict__
-    else:
-        if isinstance(variables, str):
-            d[variables] = f.variables[variables][:]
-            a[variables] = f.variables[variables].__dict__
-        else:
-            for var in variables:
-                d[var] = f.variables[var][:]
-                a[var] = f.variables[var].__dict__
-    f.close()
-    return d, a
-
-
-def process_command_line():
-    """
-    Process command line arguments. Must have target grid (in netcdf format)
-    and soil file (in standard vic format)
-    Optionally may include snow and vegitation parameter files.
-    """
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("-d", "--domain_file",
-                        type=str,
-                        help="Input netCDF target grid",
-                        required=True)
-
-    parser.add_argument("-s1", "--soil_file1",
-                        type=str,
-                        help="Input file containing soil parameter",
-                        required=True)
-    parser.add_argument("-s2", "--soil_file2",
-                        type=str,
-                        help="Input file containing soil parameter",
-                        required=True)
-    parser.add_argument("-o", "--out_path",
-                        type=str,
-                        help="outpath for files",
-                        default='./')
-    parser.add_argument("-t1", "--title1",
-                        type=str,
-                        help="Input tile for soil_file1",
-                        default=None)
-    parser.add_argument("-t2", "--title2",
-                        type=str,
-                        help="Input tile for soil_file2",
-                        default=None)
-    args = parser.parse_args()
-
-    domain_file = args.domain_file
-    soil_file1 = args.soil_file1
-    soil_file2 = args.soil_file2
-    out_path = args.out_path
-
-    if args.title1:
-        title1 = args.title1
-    else:
-        title1 = os.path.splitext(os.path.split(soil_file1)[1])[0]
-
-    if args.title2:
-        title2 = args.title2
-    else:
-        title2 = os.path.splitext(os.path.split(soil_file2)[1])[0]
-
-    return domain_file, soil_file1, soil_file2, out_path, title1, title2
-
-if __name__ == "__main__":
-    main()
+# -------------------------------------------------------------------- #

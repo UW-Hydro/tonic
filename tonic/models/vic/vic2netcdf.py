@@ -9,22 +9,21 @@ References:
  - VIC: http://www.hydro.washington.edu/Lettenmaier/Models/VIC/index.shtml
  - netCDF: http://www.unidata.ucar.edu/software/netcdf/
  - Python netCDF4: https://code.google.com/p/netcdf4-python/
- - NetCDF Climate and Forecast (CF) Metadata Convention: http://cf-pcmdi.llnl.gov/
+ - NetCDF Climate and Forecast (CF) Metadata Convention:
+    http://cf-pcmdi.llnl.gov/
  - Pandas: http://pandas.pydata.org/
 """
 # Imports
+from __future__ import print_function
 from os import path
 from glob import glob
 from re import findall
 from collections import OrderedDict, deque
 from bisect import bisect_left
-from argparse import ArgumentParser
 from getpass import getuser
 from datetime import datetime, timedelta
 from pandas import read_table, DataFrame
 from netCDF4 import Dataset, date2num, num2date, default_fillvals
-from ConfigParser import SafeConfigParser
-from scipy.spatial import cKDTree
 import socket
 import subprocess
 import dateutil.relativedelta as relativedelta
@@ -32,7 +31,13 @@ import os
 import sys
 import numpy as np
 import time as tm
+from tonic.io import read_config, SafeConfigParser
+from tonic.tonic import calc_grid, get_grid_inds, NcVar
 
+description = 'Convert a set of VIC ascii outputs to gridded netCDF'
+help = 'Convert a set of VIC ascii outputs to gridded netCDF'
+
+# -------------------------------------------------------------------- #
 SECSPERDAY = 86400.0
 
 REFERENCE_STRING = '0001-1-1 0:0:0'
@@ -43,7 +48,9 @@ TIMESTAMPFORM = '%Y-%m-%d-%H'
 NC_DOUBLE = 'f8'
 NC_FLOAT = 'f4'
 NC_INT = 'i4'
+# -------------------------------------------------------------------- #
 
+# -------------------------------------------------------------------- #
 # Default configuration
 default_config = {'OPTIONS': {'out_file_format': 'NETCDF3_64BIT',
                               'precision': 'single',
@@ -55,8 +62,10 @@ default_config = {'OPTIONS': {'out_file_format': 'NETCDF3_64BIT',
                   'DOMAIN': {'longitude_var': 'longitude',
                              'latitude_var': 'latitude',
                              'y_x_dims': ['y', 'x']}}
+# -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Point(object):
     '''Creates a point class for intellegently
     storing coordinate information'''
@@ -130,6 +139,7 @@ class Point(object):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Plist(deque):
     '''List subclass that has a few helper methods for adding and
     obtaining coordinates'''
@@ -141,12 +151,12 @@ class Plist(deque):
         return np.array([p.lat for p in self])
 
     def add_xs(self, xinds):
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             self[i].x = xinds[i]
         return
 
     def add_ys(self, yinds):
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             self[i].y = yinds[i]
         return
 
@@ -208,6 +218,7 @@ class Plist(deque):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 class Segment(object):
     def __init__(self, num, i0, i1, nc_format, filename,
                  memory_mode='original'):
@@ -240,7 +251,7 @@ class Segment(object):
                         Res., 99(D7), 14,415-14,428.',
                    comment='Output from the Variable Infiltration Capacity \
                         (VIC) Macroscale Hydrologic Model',
-                   Conventions='CF-1.6',
+                   conventions='CF-1.6',
                    target_grid_file='unknown',
                    username=None,
                    hostname=None,
@@ -253,7 +264,7 @@ class Segment(object):
         self.f.source = source
         self.f.references = references
         self.f.comment = comment
-        self.f.Conventions = Conventions
+        self.f.conventions = conventions
         if hostname:
             self.f.hostname = hostname
         else:
@@ -271,7 +282,7 @@ class Segment(object):
             except:
                 self.f.version = 'unknown'
 
-        for attribute, value in kwargs.iteritems():
+        for attribute, value in kwargs.items():
             if hasattr(self.f, attribute):
                 print('WARNING: Attribute {0} already \
                       exists'.format(attribute))
@@ -311,12 +322,12 @@ End Date: {5}
         """ define the coordinate dimension (and write data) """
         # Setup dimensions
         dimensions = []
-        for name, ncvar in domain.iteritems():
+        for name, ncvar in domain.items():
             # Setup dimensions
             for dim in ncvar.dimensions:
                 if dim not in dimensions:
                     dimensions.append(dim)
-                    d = self.f.createDimension(dim, getattr(ncvar, dim))
+                    self.f.createDimension(dim, getattr(ncvar, dim))
             # Create variable
             if "_FillValue" in ncvar.attributes.keys():
                 fill_val = ncvar.attributes['_FillValue']
@@ -329,7 +340,7 @@ End Date: {5}
             # Apply the data
             self.fields[name][:] = ncvar
             # Add the attributes
-            for key, val in ncvar.attributes.iteritems():
+            for key, val in ncvar.attributes.items():
                 setattr(self.fields[name], key, val)
 
         return
@@ -338,16 +349,16 @@ End Date: {5}
                       soil_layers=False):
         """ Define 4th dimensions """
         if snow_bands:
-            d = self.f.createDimension('snow_bands', snow_bands)
+            self.f.createDimension('snow_bands', snow_bands)
         if veg_tiles:
-            d = self.f.createDimension('veg_tiles', veg_tiles)
+            self.f.createDimension('veg_tiles', veg_tiles)
         if soil_layers:
-            d = self.f.createDimension('soil_layers', soil_layers)
+            self.f.createDimension('soil_layers', soil_layers)
         return
 
     def nc_fields(self, fields, y_x_dims, precision):
         """ define each field """
-        coords = ('time',)+tuple(y_x_dims)
+        coords = ('time',) + tuple(y_x_dims)
 
         if precision == 'single':
             prec_global = NC_FLOAT
@@ -360,28 +371,28 @@ End Date: {5}
         self.three_dim_vars = []
         self.four_dim_vars = []
 
-        for name, field in fields.iteritems():
+        for name, field in fields.items():
             write_out_var = True
             if 'write_out_var' in field:
                 if not field['write_out_var']:
                     write_out_var = False
 
             if write_out_var:
+                ncols = len(self.f.dimensions[field['dim4']])
                 if 'dim4' in field.keys():
-                    if len(field['column']) == len(self.f.dimensions[field['dim4']]):
+                    if len(field['column']) == ncols:
                         # 4d var
                         coords = ('time',) + tuple([field['dim4']]) \
                             + tuple(y_x_dims)
                         self.four_dim_vars.append(name)
-                    elif len(field['column']) != len(self.f.dimensions[field['dim4']]):
-                        raise ValueError('Number of columns for variable {0} \
-                                         does not match the length ({1}) of the \
-                                         {2} dimension'.format(name,
-                                                               len(self.f.dimensions[field['dim4']]),
-                                                               field['dim4']))
+                    else:
+                        raise ValueError('Number of columns for variable {0}'
+                                         'does not match the length ({1}) of '
+                                         'the {2} dimension'.format(
+                                             name, ncols, field['dim4']))
                 else:
                     # standard 3d var
-                    coords = ('time',)+tuple(y_x_dims)
+                    coords = ('time',) + tuple(y_x_dims)
                     self.three_dim_vars.append(name)
 
                 if 'type' in field.keys():
@@ -397,7 +408,7 @@ End Date: {5}
                 if 'units' in field.keys():
                     self.fields[name].long_name = name
                     self.fields[name].coordinates = 'lon lat'
-                    for key, val in field.iteritems():
+                    for key, val in field.items():
                         setattr(self.fields[name], key, val)
                 else:
                     raise ValueError('Field {0} missing units \
@@ -406,7 +417,7 @@ End Date: {5}
 
     def allocate(self):
         self.data = {}
-        for name, field in self.fields.iteritems():
+        for name, field in self.fields.items():
             if hasattr(field, '_FillValue'):
                 self.data[name] = np.zeros_like(field) + field._FillValue
             else:
@@ -414,25 +425,28 @@ End Date: {5}
 
     def nc_add_data_to_array(self, point):
         for name in self.three_dim_vars:
-            self.data[name][:, point.y, point.x] = point.df[name].values[self.slice]
+            self.data[name][:, point.y,
+                            point.x] = point.df[name].values[self.slice]
         for name in self.four_dim_vars:
             varshape = self.f.variables[name].shape[1]
-            for i in xrange(varshape):
+            for i in range(varshape):
                 subname = name + str(i)
-                self.data[name][:, i, point.y, point.x] = point.df[subname].values[self.slice]
+                self.data[name][:, i, point.y,
+                                point.x] = point.df[subname].values[self.slice]
 
     def nc_add_data_standard(self, points):
         ys = points.get_ys()
         xs = points.get_xs()
-        for point in points:
+        for p in points:
             for name in self.three_dim_vars:
                 data = points.get_data(name, self.slice)
                 self.f.variables[name][:, ys, xs] = data
             for name in self.four_dim_vars:
                 varshape = self.f.variables[name].shape[1]
-                for i in xrange(varshape):
-                    subname = name + str(i)
-                    self.f.variables[name][:, i, ys, xs] = point.df[subname].values[self.slice]
+                for i in range(varshape):
+                    sn = name + str(i)
+                    self.f.variables[name][:, i, ys,
+                                           xs] = p.df[sn].values[self.slice]
 
     def nc_write_data_from_array(self):
         """ write completed data arrays to disk """
@@ -452,61 +466,20 @@ End Date: {5}
 # -------------------------------------------------------------------- #
 
 
-# -------------------------------------------------------------------- #
-class NcVar(np.ndarray):
-    """ Subclass of numpy array to cary netcdf attributes"""
-    def __new__(cls, f, varname):
-        obj = np.asarray(f.variables[varname][:]).view(cls)
-        # add the new attribute to the created instance
-        obj.dimensions = f.variables[varname].dimensions
-        obj.attributes = f.variables[varname].__dict__
-        for dim in obj.dimensions:
-            setattr(obj, dim, len(f.dimensions[dim]))
-        # Finally, we must return the newly created object:
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
-# -------------------------------------------------------------------- #
-
-
-class FakeNcVar(np.ndarray):
-    """ Subclass of numpy array to carry netcdf attributes"""
-    def __new__(cls, data, dimensions, attributes):
-        obj = np.asarray(data).view(cls)
-        # add the new attribute to the created instance
-        obj.dimensions = dimensions
-        obj.attributes = attributes
-        shape = data.shape
-        for i, dim in enumerate(obj.dimensions):
-            setattr(obj, dim, shape[i])
-        # Finally, we must return the newly created object:
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None:
-            return
-# -------------------------------------------------------------------- #
-
-
-def main():
+def _run(args):
     """Top level driver"""
+    print('running now...')
 
-    # ---------------------------------------------------------------- #
-    # Read command Line
-    config_file, create_batch, batch_dir = process_command_line()
-    # ---------------------------------------------------------------- #
-
-    if create_batch:
+    if args.create_batch:
         # ------------------------------------------------------------ #
         # Create batch files and exit
-        batch(config_file, create_batch, batch_dir)
+        batch(args.config_file, args.create_batch, args.batch_dir)
         # ------------------------------------------------------------ #
     else:
         # ------------------------------------------------------------ #
         # Read Configuration files
-        config_dict = read_config(config_file)
+        config_dict = read_config(args.config_file,
+                                  default_config=default_config)
         options = config_dict.pop('OPTIONS')
         global_atts = config_dict.pop('GLOBAL_ATTRIBUTES')
         if not options['regular_grid']:
@@ -515,8 +488,11 @@ def main():
             domain_dict = None
 
         # set aside fields dict (sort by column)
-        fields = OrderedDict(sorted(config_dict.iteritems(),
-                             key=lambda x: x[1]['column']))
+        for k, v in config_dict.items():
+            if type(v['column']) == int:
+                v['column'] = list([v['column']])
+        fields = OrderedDict(sorted(config_dict.items(),
+                             key=lambda x: x[1]['column'][0]))
 
         vic2nc(options, global_atts, domain_dict, fields)
         # ------------------------------------------------------------ #
@@ -524,6 +500,7 @@ def main():
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def vic2nc(options, global_atts, domain_dict, fields):
     """ Convert ascii VIC files to netCDF format"""
 
@@ -537,15 +514,15 @@ def vic2nc(options, global_atts, domain_dict, fields):
     print("\n-------------------------------")
     print("Configuration File Options")
     print("-------------OPTIONS-------------")
-    for pair in options.iteritems():
+    for pair in options.items():
         print("{0}: {1}".format(*pair))
     print('Fields: {0}'.format(", ".join(fields.keys())))
     if domain_dict:
         print("-------------DOMAIN--------------")
-        for pair in domain_dict.iteritems():
+        for pair in domain_dict.items():
             print("{0}: {1}".format(*pair))
     print("--------GLOBAL_ATTRIBUTES--------")
-    for pair in global_atts.iteritems():
+    for pair in global_atts.items():
         print("{0}: {1}".format(*pair))
     print("--------RUN MODE--------")
     print('Memory Mode: {0}'.format(memory_mode))
@@ -624,7 +601,6 @@ def vic2nc(options, global_atts, domain_dict, fields):
     else:
         end_date = vic_datelist[-1]
 
-
     # Ordinal Time
     start_ord = date2num(start_date, TIMEUNITS, calendar=options['calendar'])
     end_ord = date2num(end_date, TIMEUNITS, calendar=options['calendar'])
@@ -637,20 +613,20 @@ def vic2nc(options, global_atts, domain_dict, fields):
         # calendar insensitive
         num_segments = np.ceil(end_ord - start_ord)
         if start_date.hour == 0:
-            segment_dates = num2date(np.arange(start_ord, end_ord+1, 1),
+            segment_dates = num2date(np.arange(start_ord, end_ord + 1, 1),
                                      TIMEUNITS, calendar=options['calendar'])
         else:
             # allow start at time other than 0
             temp = [start_ord].append(np.arange(np.ceil(start_ord),
-                                      end_ord+1, 1))
+                                      end_ord + 1, 1))
             segment_dates = num2date(temp, TIMEUNITS,
                                      calendar=options['calendar'])
     elif options['time_segment'] == 'month':
-        num_segments = (end_date.year - start_date.year)*12 \
+        num_segments = (end_date.year - start_date.year) * 12 \
             + end_date.month - start_date.month + 1
         month = start_date.month
         year = start_date.year
-        for i in xrange(num_segments+1):
+        for i in range(num_segments + 1):
             segment_dates.append(datetime(year, month, 1))
             month += 1
             if month == 13:
@@ -659,13 +635,13 @@ def vic2nc(options, global_atts, domain_dict, fields):
     elif options['time_segment'] == 'year':
         num_segments = end_date.year - start_date.year + 1
         year = start_date.year
-        for i in xrange(num_segments+1):
+        for i in range(num_segments + 1):
             segment_dates.append(datetime(year, 1, 1))
             year += 1
     elif options['time_segment'] == 'decade':
-        num_segments = (end_date.year - start_date.year)/10 + 1
+        num_segments = (end_date.year - start_date.year) / 10 + 1
         year = start_date.year
-        for i in xrange(num_segments+1):
+        for i in range(num_segments + 1):
             segment_dates.append(datetime(year, 1, 1))
             year += 10
     elif options['time_segment'] == 'all':
@@ -674,8 +650,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
     else:
         raise ValueError('Unknown timesegment options \
                          {0}'.format(options['time_segment']))
-    print("Number of files: {0}".format(len(segment_dates)-1))
-    assert len(segment_dates) == num_segments+1
+    print("Number of files: {0}".format(len(segment_dates) - 1))
+    assert len(segment_dates) == num_segments + 1
 
     # Make sure the first and last dates are start/end_date
     segment_dates[0] = start_date
@@ -686,10 +662,10 @@ def vic2nc(options, global_atts, domain_dict, fields):
     # Setup Segments
     segments = deque()
 
-    for num in xrange(num_segments):
+    for num in range(num_segments):
         # Segment time bounds
         t0 = segment_dates[num]
-        t1 = segment_dates[num+1]
+        t1 = segment_dates[num + 1]
 
         # Get segment inds
         i0 = bisect_left(vic_datelist, t0)
@@ -742,12 +718,12 @@ def vic2nc(options, global_atts, domain_dict, fields):
     else:
         prec = NC_FLOAT
 
-    for name, field in fields.iteritems():
+    for name, field in fields.items():
 
-        if type(field['column']) == list:
+        if len(field['column']) > 1:
             # multiple levels
             for i, col in enumerate(field['column']):
-                names.append(name+str(i))
+                names.append(name + str(i))
                 usecols.append(col)
             if 'type' in field:
                 if type(field['type']) == list:
@@ -762,7 +738,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
                     if type(field['bin_dtype']) == list:
                         bin_dtypes.extend(field['bin_dtype'])
                     else:
-                        bin_dtypes.extend([field['bin_dtype']] * len(field['column']))
+                        bin_dtypes.extend([field['bin_dtype']] *
+                                          len(field['column']))
                 else:
                     raise ValueError('bin_dtype not in field: {}'.format(name))
 
@@ -770,7 +747,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
                     if type(field['bin_mult']) == list:
                         bin_mults.extend(field['bin_mult'])
                     else:
-                        bin_mults.extend([field['bin_mult']] * len(field['column']))
+                        bin_mults.extend([field['bin_mult']] *
+                                         len(field['column']))
                 else:
                     bin_mults.extend([1.0] * len(field['column']))
         else:
@@ -809,7 +787,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
     # order. Note that sorted(usecols) is not strictly necessary, since
     # apparently that is done in read_table, but it keeps the names and columns
     # in the same order
-    names = [x for (y,x) in sorted(zip(usecols, names))]
+    names = [x for (y, x) in sorted(zip(usecols, names))]
     usecols = sorted(usecols)
     points.set_names(names)
     points.set_usecols(usecols)
@@ -893,66 +871,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
 # -------------------------------------------------------------------- #
 
 
-def read_config(config_file):
-    """
-    Return a dictionary with subdictionaries of all configFile options/values
-    """
-    config = SafeConfigParser()
-    config.optionxform = str
-    config.read(config_file)
-    sections = config.sections()
-    dict1 = OrderedDict()
-    for section in sections:
-        options = config.options(section)
-        dict2 = OrderedDict()
-        for option in options:
-            dict2[option] = config_type(config.get(section, option))
-        dict1[section] = dict2
-
-    for name, section in dict1.iteritems():
-        if name in default_config.keys():
-            for option, key in default_config[name].iteritems():
-                if option not in section.keys():
-                    dict1[name][option] = key
-
-    return dict1
-
-
-def config_type(value):
-    """
-    Parse the type of the configuration file option.
-    First see the value is a bool, then try float, finally return a string.
-    """
-    val_list = [x.strip() for x in value.split(',')]
-    if len(val_list) == 1:
-        value = val_list[0]
-        if value in ['true', 'True', 'TRUE', 'T']:
-            return True
-        elif value in ['false', 'False', 'FALSE', 'F']:
-            return False
-        elif value in ['none', 'None', 'NONE', '']:
-            return None
-        else:
-            try:
-                return int(value)
-            except:
-                pass
-            try:
-                return float(value)
-            except:
-                return value
-    else:
-        try:
-            return map(int, val_list)
-        except:
-            pass
-        try:
-            return map(float, val_list)
-        except:
-            return val_list
 # -------------------------------------------------------------------- #
-
-
 def get_file_coords(files):
     """
     Get list of Point objects
@@ -963,13 +882,14 @@ def get_file_coords(files):
     for i, filename in enumerate(files):
         # fname = path.split(f)[1][-16:] # just look at last 16 characters
         f = filename[-22:]  # just look at last 16 characters
-        lat, lon = map(float, findall(r"[-+]?\d*\.\d+|\d+", f))[-2:]
+        lat, lon = list(map(float, findall(r"[-+]?\d*\.\d+|\d+", f)))[-2:]
         points.append(Point(lat=lat, lon=lon, filename=filename))
 
     return points
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def get_dates(file):
     """
     Read the first file in the input directory and create a ordinal based
@@ -1001,6 +921,7 @@ def get_dates(file):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def make_dates(start, end, dt, calendar='standard'):
     """
     Return a list of datetime object from inputs of
@@ -1015,9 +936,9 @@ def make_dates(start, end, dt, calendar='standard'):
 
     start_ord = date2num(datetime(*start), TIMEUNITS, calendar=calendar)
     end_ord = date2num(datetime(*end), TIMEUNITS, calendar=calendar)
-    step = float(dt)/SECSPERDAY
+    step = float(dt) / SECSPERDAY
 
-    ordlist = np.arange(start_ord, end_ord+step, step)
+    ordlist = np.arange(start_ord, end_ord + step, step)
 
     datelist = num2date(ordlist, TIMEUNITS, calendar=calendar)
 
@@ -1025,6 +946,7 @@ def make_dates(start, end, dt, calendar='standard'):
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def read_domain(domain_dict):
 
     print('reading domain file: {0}'.format(domain_dict['filename']))
@@ -1043,38 +965,7 @@ def read_domain(domain_dict):
 # -------------------------------------------------------------------- #
 
 
-def get_grid_inds(domain, points):
-    """
-    Find location of lat/lon points in 2d target grid.
-    Uses cKdtree nearest neighbor mapping.
-    """
-    lons = points.get_lons()
-    lats = points.get_lats()
-
-    if (lons.min() < 0) and (domain['lon'].min() >= 0):
-        posinds = np.nonzero(lons < 0)
-        lons[posinds] += 360
-        print('adjusted VIC lon minimum (+360 for negative lons)')
-
-    # Make sure the longitude / latitude vars are 2d
-    if domain['lat'].ndim == 1 or domain['lon'].ndim == 1:
-        dlons, dlats = np.meshgrid(domain['lon'], domain['lat'])
-
-    combined = np.dstack(([dlats.ravel(), dlons.ravel()]))[0]
-    point_list = list(np.vstack((lats, lons)).transpose())
-
-    mytree = cKDTree(combined)
-    dist, indexes = mytree.query(point_list, k=1)
-
-    yinds, xinds = np.unravel_index(indexes, dlons.shape)
-
-    points.add_xs(xinds)
-    points.add_ys(yinds)
-
-    return points
 # -------------------------------------------------------------------- #
-
-
 def batch(config_file, create_batch, batch_dir):
     """Create a set of batch configuration files"""
 
@@ -1095,7 +986,7 @@ def batch(config_file, create_batch, batch_dir):
         # batch by variables
         # options section
         config.add_section('OPTIONS')
-        for option, value in options.iteritems():
+        for option, value in options.items():
             if type(value) == list:
                 try:
                     value = ", ".join(value)
@@ -1107,7 +998,7 @@ def batch(config_file, create_batch, batch_dir):
 
         # global_atts section
         config.add_section('GLOBAL_ATTRIBUTES')
-        for option, value in global_atts.iteritems():
+        for option, value in global_atts.items():
             if type(value) == list:
                 try:
                     value = ", ".join(value)
@@ -1120,7 +1011,7 @@ def batch(config_file, create_batch, batch_dir):
         # domain dict section
         if domain_dict:
             config.add_section('DOMAIN')
-            for option, value in domain_dict.iteritems():
+            for option, value in domain_dict.items():
                 if type(value) == list:
                     try:
                         value = ", ".join(value)
@@ -1131,13 +1022,13 @@ def batch(config_file, create_batch, batch_dir):
 
                 config.set('DOMAIN', option, value.strip("'"))
 
-        for var, field in fields.iteritems():
+        for var, field in fields.items():
             suffix = "_{0}.cfg".format(var)
-            new_cfg_file = os.path.join(batch_dir, nameprefix+suffix)
+            new_cfg_file = os.path.join(batch_dir, nameprefix + suffix)
 
             # this var
             config.add_section(var)
-            for option, value in field.iteritems():
+            for option, value in field.items():
                 if type(value) == list:
                     try:
                         value = ", ".join(value)
@@ -1184,10 +1075,8 @@ def batch(config_file, create_batch, batch_dir):
             else:
                 t1 += hour
 
-            # suffix = "_{0}-{1}.cfg".format(t0.strftime("%Y%m%d%H"),
-            #                                t1.strftime("%Y%m%d%H"))
             suffix = '_{0}'.format(i)
-            new_cfg_file = os.path.join(batch_dir, nameprefix+suffix)
+            new_cfg_file = os.path.join(batch_dir, nameprefix + suffix)
 
             # Write config replacing start and end dates
             config.set('OPTIONS', 'start_date', t0.strftime(TIMESTAMPFORM))
@@ -1198,93 +1087,4 @@ def batch(config_file, create_batch, batch_dir):
 
             t0 += td
     return
-# -------------------------------------------------------------------- #
-
-
-def latlon2yx(plats, plons, glats, glons):
-    """find y x coordinates """
-
-    if glons.ndim == 1 or glats.ndim == 1:
-        glons, glats = np.meshgrid(glons, glats)
-
-    combined = np.dstack(([glats.ravel(), glons.ravel()]))[0]
-    points = list(np.vstack((np.array(plats), np.array(plons))).transpose())
-
-    mytree = cKDTree(combined)
-    dist, indexes = mytree.query(points, k=1)
-    y, x = np.unravel_index(np.array(indexes), glons.shape)
-    return y, x
-# -------------------------------------------------------------------- #
-
-
-def calc_grid(lats, lons, decimals=4):
-    """ determine shape of regular grid from lons and lats"""
-
-    print('Calculating grid size now...')
-
-    target_grid = {}
-
-    # get unique lats and lons
-    lon = np.sort(np.unique(lons.round(decimals=decimals)))
-    print('found {0} unique lons'.format(len(lon)))
-
-    lat = np.sort(np.unique(lats.round(decimals=decimals)))
-    print('found {0} unique lats'.format(len(lat)))
-
-    y, x = latlon2yx(lats, lons, lat, lon)
-
-    mask = np.zeros((len(lat), len(lon)), dtype=int)
-
-    mask[y, x] = 1
-
-    # Create fake NcVar Types
-    target_grid['lon'] = FakeNcVar(lon, ('lon', ),
-                                   {'long_name': 'longitude coordinate',
-                                    'units': 'degrees_east'})
-    target_grid['lat'] = FakeNcVar(lat, ('lat', ),
-                                   {'long_name': 'latitude coordinate',
-                                    'units': 'degrees_north'})
-    target_grid['mask'] = FakeNcVar(mask, ('lat', 'lon', ),
-                                    {'long_name': 'domain mask',
-                                     'comment': '0 indicates grid cell is not \
-                                     active'})
-
-    print('Created a target grid based on the lats and lons in the '
-          'input file names')
-    print('Grid Size: {}'.format(mask.shape))
-
-    return target_grid
-# -------------------------------------------------------------------- #
-
-
-def process_command_line():
-    """
-    Get the path to the config_file
-    """
-    # Parse arguments
-    parser = ArgumentParser(description='convert VIC ascii output to \
-                            netCDF format')
-    parser.add_argument("config_file", type=str,
-                        help="Input configuration file")
-    parser.add_argument("--create_batch", type=str,
-                        choices=['days', 'months', 'years', 'variables'],
-                        default=False, help="Create a batch of config files")
-    parser.add_argument("--batch_dir", type=str, default="./",
-                        help="Location to put batch config files")
-    args = parser.parse_args()
-
-    if not os.path.isfile(args.config_file):
-        raise IOError('Configuration File: {0} is not a valid \
-                      file'.format(args.config_file))
-
-    if not os.path.isdir(args.batch_dir) and args.create_batch:
-        raise IOError('Configuration File: {0} is not a valid \
-                      file'.format(args.config_file))
-
-    return args.config_file, args.create_batch, args.batch_dir
-# -------------------------------------------------------------------- #
-
-# -------------------------------------------------------------------- #
-if __name__ == "__main__":
-    main()
 # -------------------------------------------------------------------- #

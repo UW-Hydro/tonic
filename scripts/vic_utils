@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 # PYTHON_ARGCOMPLETE_OK
 
-"""VICpy command line interface"""
+"""tonic - vic_utils command line interface"""
 from __future__ import print_function
-# import argcomplete
 import argparse
 import subprocess
-from vic import version, netcdf2vic, compare_soil_params, grid_params, \
+from tonic import version
+from tonic.models.vic import netcdf2vic, compare_soil_params, grid_params, \
     ncparam2ascii, vic2netcdf
 
 
@@ -17,13 +17,15 @@ def main():
     """
     # ---------------------------------------------------------------- #
     # create the top-level parser
-    parser = argparse.ArgumentParser(prog='VICpy',
-                                     description='Python toolkit for the '
-                                     'VIC model')
+    format = lambda prog: argparse.HelpFormatter(prog, max_help_position=25)
+
+    parser = argparse.ArgumentParser(prog='vic_utils',
+                                     description='vic_utils command line '
+                                                 'interface.',
+                                     formatter_class=format)
     parser.add_argument('--version', action='version',
                         version=version.short_version)
-    subparsers = parser.add_subparsers(title='VICpy subcommands')
-    subparsers.completer = complete_subparser_action
+    subparsers = parser.add_subparsers(title='vic_utils subcommands')
     # ---------------------------------------------------------------- #
 
     # ---------------------------------------------------------------- #
@@ -40,8 +42,8 @@ def main():
     # ---------------------------------------------------------------- #
     # create the parser for the "grid_params" command
     grid_params_parser = subparsers.add_parser('grid_params',
-                                              help=grid_params.help,
-                                              description=grid_params.description)
+                                               help=grid_params.help,
+                                               description=grid_params.description)
     grid_params_parser.set_defaults(func=grid_params._run)
     grid_params_parser.add_argument("soil_file",
                                     type=str,
@@ -177,14 +179,24 @@ def main():
                                               help=vic2netcdf.help,
                                               description=vic2netcdf.description)
     vic2netcdf_parser.set_defaults(func=vic2netcdf._run)
-    vic2netcdf_parser.add_argument("config",
+    vic2netcdf_parser.add_argument("config_file",
                                    type=str,
                                    help="Input vic2netcdf Configuration File")
+    vic2netcdf_parser.add_argument("--create_batch", type=str,
+                                   choices=['days', 'months',
+                                            'years', 'variables'],
+                                   default=False,
+                                   help="Create a batch of config files")
+    vic2netcdf_parser.add_argument("--batch_dir", type=str, default="./",
+                                   help="Location to put batch config files")
     # ---------------------------------------------------------------- #
 
     # argcomplete.autocomplete(parser)
     args = parser.parse_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except AttributeError:
+        parser.print_help()
     return
 # -------------------------------------------------------------------- #
 

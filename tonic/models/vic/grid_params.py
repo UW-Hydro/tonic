@@ -15,7 +15,7 @@ import time as tm
 import socket
 from getpass import getuser
 from collections import OrderedDict
-from .share import read_netcdf
+from tonic.io import read_netcdf
 
 # -------------------------------------------------------------------- #
 description = 'Converter for VIC ASCII style parameters to gridded netCDF'
@@ -42,7 +42,7 @@ YVAR = 'yc'
 
 
 # -------------------------------------------------------------------- #
-class cols(object):
+class Cols(object):
     def __init__(self, nlayers=3, snow_bands=5):
         self.soil_param = OrderedDict([('run_cell', np.array([0])),
                                        ('gridcell', np.array([1])),
@@ -963,7 +963,7 @@ def soil(in_file, nlayers=3):
     print('reading {0}'.format(in_file))
     data = np.loadtxt(in_file)
 
-    c = cols(nlayers=nlayers)
+    c = Cols(nlayers=nlayers)
 
     soil_dict = OrderedDict()
     for var, columns in c.soil_param.items():
@@ -984,7 +984,7 @@ def snow(snow_file, soil_dict, snow_bands=5):
 
     data = np.loadtxt(snow_file)
 
-    c = cols(snow_bands=snow_bands)
+    c = Cols(snow_bands=snow_bands)
 
     snow_dict = OrderedDict()
     for var in c.snow_param:
@@ -1104,7 +1104,7 @@ def veg_class(veg_file, maxcols=58, skiprows=3):
 
     data = np.loadtxt(veg_file, usecols=usecols, skiprows=skiprows)
 
-    c = cols()
+    c = Cols()
 
     veglib_dict = OrderedDict()
     for var in c.veglib:

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 vic.py
 """
@@ -6,11 +7,12 @@ from __future__ import print_function
 import os
 import tempfile
 import subprocess
+from datetime import datetime
 import pandas as pd
 
 
 # -------------------------------------------------------------------- #
-class VIC_Error(RuntimeError):
+class VICRuntimeError(RuntimeError):
     pass
 # -------------------------------------------------------------------- #
 
@@ -24,17 +26,19 @@ class VIC(object):
             self.version = self._get_version()
             self.options = self._get_options()
         else:
-            raise VIC_Error('%s is not a valid executable' % executable)
+            raise VICRuntimeError('%s is not a valid executable' % executable)
 
     def _get_version(self):
         """Get the version of VIC from the executable"""
-        return self._call_vic('-v')[1]
+        self._call_vic('-v')
+        return self.stdout
 
     def _get_options(self):
         """Get the compile time options of VIC from the executable"""
-        return self._call_vic('-o')[1]
+        self._call_vic('-o')
+        return self.stdout
 
-    def run(self, global_param):
+    def run(self, global_param, logdir=None):
         """run VIC"""
 
         if os.path.isfile(global_param):
@@ -47,12 +51,24 @@ class VIC(object):
             with open(global_param_file, mode='w') as f:
                 f.write(global_param)
 
-        stdout = self._call_vic('-g', global_param_file)
+        self._call_vic('-g', global_param_file)
 
-        return stdout
+        if logdir:
+            now = datetime.now()
+            seconds = (now - now.replace(hour=0, minute=0, second=0,
+                                         microsecond=0)).total_seconds()
+            timestr = "%s_%05.f" % (now.strftime("%Y%m%d"), seconds)
+            with open(os.path.join(logdir, 'stdout_{0}.txt'.format(timestr)),
+                      mode='wb') as f:
+                f.write(self.stdout)
+            with open(os.path.join(logdir, 'stderr_{0}.txt'.format(timestr)),
+                      mode='wb') as f:
+                f.write(self.stderr)
+
+        return self.returncode
 
     def _call_vic(self, *args):
-        vic_args = [self.executable]+[a for a in args]
+        vic_args = [self.executable] + [a for a in args]
 
         proc = subprocess.Popen(' '.join(vic_args),
                                 shell=True,
@@ -60,32 +76,31 @@ class VIC(object):
                                 stdout=subprocess.PIPE)
         retvals = proc.communicate()
 
-        stdout = retvals[0]
-        stderr = retvals[1]
-        returncode = proc.returncode
+        self.stdout = retvals[0]
+        self.stderr = retvals[1]
+        self.returncode = proc.returncode
 
-        if returncode > 0:
-            raise VIC_Error(stderr)
-
-        return stdout, stderr
+        # if self.returncode != 0:
+        #     raise VICRuntimeError(self.stderr)
 # -------------------------------------------------------------------- #
 
 
+# -------------------------------------------------------------------- #
 def read_vic_ascii(filepath, header=True, parse_dates=True,
                    datetime_index=None, names=None, **kwargs):
     """Generic reader function for VIC ASCII output with a standard header
     filepath: path to VIC output file
     header (True or False):  Standard VIC header is present
     parse_dates (True or False): Parse dates from file
-    datetime_index (Pandas.tseries.index.DatetimeIndex):  Index to use as datetime index
-    names (list like): variable names
+    datetime_index (Pandas.tseries.index.DatetimeIndex):  Index to use as
+    datetime index names (list like): variable names
     **kwargs: passed to Pandas.read_table
 
     returns Pandas.DataFrame
     """
     kwargs['header'] = None
 
-    if header is True:
+    if header:
         kwargs['skiprows'] = 6
 
         # get names
@@ -114,3 +129,4 @@ def read_vic_ascii(filepath, header=True, parse_dates=True,
         df.index = datetime_index
 
     return df
+# -------------------------------------------------------------------- #

@@ -5,20 +5,25 @@ from __future__ import print_function
 import numpy as np
 import struct
 import os
+from tonic.io import read_netcdf, read_config
 
 description = 'Convert netCDF meteorological forcings to VIC sytle format'
 help = 'Convert netCDF meteorological forcings to VIC sytle format'
 
 
 # -------------------------------------------------------------------- #
-# top loevel run function
-def _run(args, **kwargs):
+# top level run function
+def _run(args):
 
-    print(args)
-    return
-
-    (files, coord_keys, var_keys, output, binary_mult, binary_type,
-        paths, out_prefix, verbose) = process_config(ar)
+    config = read_config(args.config)
+    files = config['options']['files']
+    var_keys = config['options']['var_keys']
+    output = config['options']['output']
+    binary_mult = config['options']['binary_mult']
+    binary_type = config['options']['binary_type'],
+    paths = config['options']['paths']
+    out_prefix = config['options']['out_prefix']
+    verbose = config['options']['verbose']
 
     mask = read_netcdf(paths['mask_path'], nc_vars=['mask'])['mask']
     yi, xi = np.nonzero(mask)
@@ -65,10 +70,10 @@ def _run(args, **kwargs):
                 data[:, j] = d[key][:, y, x]
 
             if output['Binary']:
-                write_binary(data*binary_mult, point, binary_type,
+                write_binary(data * binary_mult, point, binary_type,
                              out_prefix, paths['BinaryoutPath'], append)
             if output['ASCII']:
-                write_ASCII(data, point, out_prefix, paths['ASCIIoutPath'],
+                write_ascii(data, point, out_prefix, paths['ASCIIoutPath'],
                             append)
     return
 # -------------------------------------------------------------------- #
@@ -76,11 +81,11 @@ def _run(args, **kwargs):
 
 # -------------------------------------------------------------------- #
 # Write ASCII
-def write_ASCII(array, point, out_prefix, path, append, verbose=False):
+def write_ascii(array, point, out_prefix, path, append, verbose=False):
     """
     Write an array to standard VIC ASCII output.
     """
-    fname = out_prefix+('%1.3f' % point[0])+'_'+('%1.3f' % point[1])
+    fname = out_prefix + ('%1.3f' % point[0]) + '_' + ('%1.3f' % point[1])
     out_file = os.path.join(path, fname)
     if append:
         f = open(out_file, 'a')
@@ -102,7 +107,7 @@ def write_binary(array, point, binary_type, out_prefix, path, append,
     """
     Write a given array to standard binary short int format.
     """
-    fname = out_prefix+('%.3f' % point[0])+'_'+('%.3f' % point[1])
+    fname = out_prefix + ('%.3f' % point[0]) + '_' + ('%.3f' % point[1])
     out_file = os.path.join(path, fname)
     if verbose:
         print('Writing Binary Data to'.format(out_file))

@@ -2,42 +2,38 @@
 """
 Script for writing VIC ascii format parameter files from netcdf format.
 """
-description = ''
-help = ''
+description = 'Convert netCDF format VIC parameters to classic ASCII format'
+help = description
 
 
 import numpy as np
 from scipy.spatial import cKDTree
 from . import grid_params
-from .share import read_netcdf
+from tonic.io import read_netcdf
 
 FILL_VALUE = -9999
 
 
 # -------------------------------------------------------------------- #
-def _run():
+def _run(args):
 
-    nc_params, soil_file, UL, LR, outfiles, snow_file, \
-        veg_file, project, NIJSSEN2ARNO = process_command_line()
-
-    subset(nc_params, UL=UL, LR=LR, outfiles=outfiles,
-           soil_file=soil_file, snow_file=snow_file,
-           veg_file=veg_file, project=project,
-           NIJSSEN2ARNO=NIJSSEN2ARNO)
-
+    subset(args.nc_params, upleft=args.upleft, lowright=args.lowright,
+           outfiles=args.outfiles, soil_file=args.soil_file,
+           snow_file=args.snow_file, veg_file=args.veg_file,
+           project=args.project, nijssen2arno=args.nijssen2arno)
     return
 # -------------------------------------------------------------------- #
 
 
 # -------------------------------------------------------------------- #
-def subset(paramNC, UL=False, LR=False, outfiles=1,
+def subset(param_file, upleft=False, lowright=False, outfiles=1,
            soil_file=False, snow_file=False,
            veg_file=False, project=None,
-           NIJSSEN2ARNO=False):
+           nijssen2arno=False):
 
-    data, attributes = read_netcdf(paramNC)
+    data, attributes = read_netcdf(param_file)
 
-    if NIJSSEN2ARNO:
+    if nijssen2arno:
         import NIJSSEN2001_to_ARNO
         data = NIJSSEN2001_to_ARNO.convert(data)
 
@@ -57,21 +53,23 @@ def subset(paramNC, UL=False, LR=False, outfiles=1,
     # write snow and veg files
     if veg_file:
         rootzones = data['root_depth'].shape[1]
-        veg(data, xinds, yinds, veg_file, rootzones=rootzones, GLOBAL_LAI=True)
+        veg(data, xinds, yinds, veg_file, rootzones=rootzones, global_lai=True)
     if snow_file:
         snow(data, xinds, yinds, snow_file)
 
-    if (UL and LR):
-        inds = (yinds < UL[0]) & (yinds > LR[0]) & (xinds < LR[1]) \
-            & (xinds > UL[1])
+    if (upleft and lowright):
+        inds = ((yinds < upleft[0]) and
+                (yinds > lowright[0]) and
+                (xinds < lowright[1]) and
+                (xinds > upleft[1]))
         yinds = yinds[inds]
         xinds = xinds[inds]
 
-    filesize = np.ceil(cells/outfiles)
+    filesize = np.ceil(cells / outfiles)
 
-    for i in xrange(outfiles):
-        start = i*filesize
-        end = i*filesize+filesize
+    for i in range(outfiles):
+        start = i * filesize
+        end = i * filesize + filesize
         if end > cells:
             end = cells
         if outfiles > 1:
@@ -109,25 +107,25 @@ Notes about RASM soil parameter file generations:
 
     numcells = data['mask'].size
 
-    arrayshape = (numcells, 2+np.max([np.max(c.soil_param[var])
-                                      for var in c.soil_param]))
+    arrayshape = (numcells, 2 + np.max([np.max(c.soil_param[var])
+                                        for var in c.soil_param]))
     soil_params = np.empty(arrayshape)
-    dtypes = ['%1i']*arrayshape[1]
+    dtypes = ['%1i'] * arrayshape[1]
     # ---------------------------------------------------------------- #
 
     # # ---------------------------------------------------------------- #
     # # make a dummy line of fill values for unused gridcells
     # dummy = np.zeros(arrayshape[1])+FILL_VALUE
     # dummy[0] = 0
-    # dummy[c.soil_param['init_moist']+1] = 9999
-    # dummy[c.soil_param['resid_moist']+1] = 0
-    # dummy[c.soil_param['quartz']+1] = 0
-    # dummy[c.soil_param['depth']+1] = 9999
-    # dummy[c.soil_param['avg_T']+1] = 99
-    # dummy[c.soil_param['avg_T']+1] = 0
-    # dummy[c.soil_param['bulk_density']+1] = 9998
-    # dummy[c.soil_param['soil_density']+1] = 9999
-    # dummy[c.soil_param['fs_active']+1] = 1
+    # dummy[c.soil_param['init_moist'] + 1] = 9999
+    # dummy[c.soil_param['resid_moist'] + 1] = 0
+    # dummy[c.soil_param['quartz'] + 1] = 0
+    # dummy[c.soil_param['depth'] + 1] = 9999
+    # dummy[c.soil_param['avg_T'] + 1] = 99
+    # dummy[c.soil_param['avg_T'] + 1] = 0
+    # dummy[c.soil_param['bulk_density'] + 1] = 9998
+    # dummy[c.soil_param['soil_density'] + 1] = 9999
+    # dummy[c.soil_param['fs_active'] + 1] = 1
 
     # print('filling all ocean grid cells with dummy line')
     # # ---------------------------------------------------------------- #
@@ -222,7 +220,7 @@ Notes about RASM soil parameter file generations:
             if data[var].ndim == 2:
                 if print_flag == 1:
                     for col in cols:
-                        dtypes[col+1] = f.soil_param[var]
+                        dtypes[col + 1] = f.soil_param[var]
 
                     print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
                           ' {3:<09.3f}'.format(var,
@@ -230,27 +228,30 @@ Notes about RASM soil parameter file generations:
                                                data[var][yinds, xinds].max(),
                                                data[var][yinds, xinds].mean()))
 
-                soil_params[i, c.soil_param[var]+1] = data[var][y, x]
+                soil_params[i, c.soil_param[var] + 1] = data[var][y, x]
 
             elif data[var].ndim == 3:
                 if print_flag == 1:
                     for col in cols:
-                        dtypes[col+1] = f.soil_param[var]
+                        dtypes[col + 1] = f.soil_param[var]
 
                     print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
                           ' {3:<09.3f}'.format(var,
-                                               data[var][:, yinds, xinds].min(),
-                                               data[var][:, yinds, xinds].max(),
-                                               data[var][:, yinds, xinds].mean()))
+                                               data[var][:, yinds,
+                                                         xinds].min(),
+                                               data[var][:, yinds,
+                                                         xinds].max(),
+                                               data[var][:, yinds,
+                                                         xinds].mean()))
 
                 for j, col in enumerate(cols):
-                    soil_params[i, col+1] = data[var][j, y, x]
+                    soil_params[i, col + 1] = data[var][j, y, x]
 
                 if var == 'phi_s':
-                    soil_params[:, c.soil_param['phi_s']+1] = -999
+                    soil_params[:, c.soil_param['phi_s'] + 1] = -999
 
         # write the grid cell number
-        soil_params[i, 2] = i+1
+        soil_params[i, 2] = i + 1
 
     # ---------------------------------------------------------------- #
 
@@ -307,16 +308,18 @@ def soil(data, xinds, yinds, soil_file):
     c = grid_params.cols(nlayers=3)
     f = grid_params.format(nlayers=3)
 
-    arrayshape = (len(xinds), 1+np.max([np.max(c.soil_param[var])
-                                        for var in c.soil_param]))
+    arrayshape = (len(xinds), 1 + np.max([np.max(c.soil_param[var])
+                                          for var in c.soil_param]))
     soil_params = np.zeros(arrayshape)
-    dtypes = [0]*arrayshape[1]
+    dtypes = [0] * arrayshape[1]
 
     for var in c.soil_param:
         if data[var].ndim == 2:
-            soil_params[:, c.soil_param[var]] = np.atleast_2d(data[var][yinds, xinds]).transpose()
+            soil_params[:, c.soil_param[var]] = np.atleast_2d(
+                data[var][yinds, xinds]).transpose()
         elif data[var].ndim == 3:
-            soil_params[:, c.soil_param[var]] = np.atleast_2d(data[var][:, yinds, xinds]).transpose()
+            soil_params[:, c.soil_param[var]] = np.atleast_2d(
+                data[var][:, yinds, xinds]).transpose()
         for col in c.soil_param[var]:
             dtypes[col] = f.soil_param[var]
 
@@ -339,16 +342,18 @@ def snow(data, xinds, yinds, snow_file):
     c = grid_params.cols(snow_bands=snow_bands)
     f = grid_params.format(snow_bands=snow_bands)
 
-    arrayshape = (len(xinds), 1+np.max([np.max(c.snow_param[var])
-                                        for var in c.snow_param]))
+    arrayshape = (len(xinds), 1 + np.max([np.max(c.snow_param[var])
+                                          for var in c.snow_param]))
     snow_params = np.zeros(arrayshape)
-    dtypes = [0]*arrayshape[1]
+    dtypes = [0] * arrayshape[1]
 
     for var in c.snow_param:
         if data[var].ndim == 2:
-            snow_params[:, c.snow_param[var]] = np.atleast_2d(data[var][yinds, xinds]).transpose()
+            snow_params[:, c.snow_param[var]] = np.atleast_2d(
+                data[var][yinds, xinds]).transpose()
         elif data[var].ndim == 3:
-            snow_params[:, c.snow_param[var]] = np.atleast_2d(data[var][:, yinds, xinds]).transpose()
+            snow_params[:, c.snow_param[var]] = np.atleast_2d(
+                data[var][:, yinds, xinds]).transpose()
         for col in c.snow_param[var]:
             dtypes[col] = f.snow_param[var]
 
@@ -361,7 +366,7 @@ def snow(data, xinds, yinds, snow_file):
 
 
 # -------------------------------------------------------------------- #
-def veg(data, xinds, yinds, veg_file, rootzones=3, GLOBAL_LAI=True):
+def veg(data, xinds, yinds, veg_file, rootzones=3, global_lai=True):
     """Write VIC formatted veg parameter file"""
 
     print('writing veg parameter file: {0}'.format(veg_file))
@@ -373,27 +378,27 @@ def veg(data, xinds, yinds, veg_file, rootzones=3, GLOBAL_LAI=True):
 
     for y, x in zip(yinds, xinds):
         gridcell = int(data['gridcell'][y, x])
-        Nveg = int(data['Nveg'][y, x])
-        Cv = data['Cv'][:, y, x]
-        veg_class = np.nonzero(Cv)[0]
+        n_veg = int(data['Nveg'][y, x])
+        cv = data['Cv'][:, y, x]
+        veg_class = np.nonzero(cv)[0]
 
-        if not len(veg_class) == Nveg:
+        if not len(veg_class) == n_veg:
             count += 1
 
-        line1 = str(gridcell)+' '+str(Nveg)+'\n'
+        line1 = str(gridcell) + ' ' + str(n_veg) + '\n'
         f.write(line1)
-        if Nveg > 0:
+        if n_veg > 0:
             for j in veg_class:
-                line2 = [str(j+1)]
-                line2.append(str(Cv[j]))
-                for k in xrange(rootzones):
+                line2 = [str(j + 1)]
+                line2.append(str(cv[j]))
+                for k in range(rootzones):
                     line2.append(str(data['root_depth'][j, k, y, x]))
                     line2.append(str(data['root_fract'][j, k, y, x]))
                 line2.append('\n')
                 f.write(' '.join(line2))
-                if GLOBAL_LAI:
+                if global_lai:
                     line3 = []
-                    for m in xrange(12):
+                    for m in range(12):
                         line3.append(str(data['LAI'][j, m, y, x]))
                     line3.append('\n')
                     f.write(' '.join(line3))

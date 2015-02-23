@@ -1,43 +1,33 @@
-VICpy
+TONIC
 =====
 
-A pre/post processing toolbox for the [VIC model](https://github.com/UW-Hydro/VIC)
+`tonic` is a toolkit for working with distributed hydrologic models and their output.
 
-Truely a work in progress...
+This is truely a work in progress...
 
-This is a library of python scripts to go along with the pre/post
-processing of VIC model forcings/parameters/outputs.
+## Models:
+1. [the Vairable Infiltration Capacity (VIC) model](https://github.com/UW-Hydro/VIC)
+1.  [the Community Land Model (CLM)](http://www.cgd.ucar.edu/tss/clm/)
+1.  [the Unified Land Model (ULM)](https://github.com/UW-Hydro/ULM)
+1.  [the Precipitation Runoff Modeling System (PRMS)](http://wwwbrr.cr.usgs.gov/projects/SW_MoWS/PRMS.html)
+1.  [the Noah Land Surface Model](http://www.ral.ucar.edu/research/land/technology/lsm.php)
+1.  [the Structure for Unifying Multiple Modeling Alternatives (SUMMA)](http://www.ral.ucar.edu/projects/summa/)
 
-Right now this is just a collection of a few scripts but as the toolbox grows,
-a more formal structure may be put together.
+## Scripts:
+`tonic` currently has 1 script available for use on the command line.
 
-Most of the tools contained here are run from the command line and use a combination of command line arguments and configuration files.  For tool specific usage try raising the help flag, -h (e.g. vic2netcdf.py -h).
+**vic_utils**: is a utility script that runs a number of VIC related processing tools.  Once `tonic` is installed, `vic_utils` will be available in your path.  Run `vic_utils -h` for a description of the utilities available.
 
------
+## Install:
+Dependencies:
+- python 3
+- netCDF4
+- xray
+- matplotlib
+- basemap
+- pandas
 
-### vic2netcdf.py
-This tool converts binary or ASCII VIC output to a netCDF format.  Options and settings are input via configuration file (e.g. VIC2nc_example.cfg).
-
-Usage: `vic2netcdf.py some_config_file.cfg`
-
------
-
-### netcdf2vic.py
-This tool converts netCDF meteorological forcings to VIC binary or ASCII format.  Options and settings are input via configuration file (e.g. example_netcdf2vic.cfg).
-
-Usage: `netcdf2vic.py some_config_file.cfg`
-
------
-
-### grid_params.py
-This tool grids VIC soil, snow, and vegetation parameter files and stores them in a single netCDF file.  This allows for easy viewing of parameters using tools like [ncview](http://meteora.ucsd.edu/~pierce/ncview_home_page.html).  This tool take a list of command line arguments:
-
-Usage:
-For soil only: `grid_params.py --soil_file=global_soil_param_new -o outfile.nc`
-
-For soil and veg: `grid_params.py -s global_soil_param_new -o outfile.nc -v global_lai_0.25deg.txt`
-
------
+To install `tonic`, run `python setup.py install` from this directory.
 
 Questions? Sure, Joe Hamman - jhamman at hydro.washington.edu
 

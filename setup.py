@@ -1,4 +1,4 @@
- #!/usr/bin/env python
+#!/usr/bin/env python
 import os
 import re
 import sys
@@ -27,7 +27,7 @@ short_version = '%s'
 """
     if not filename:
         filename = os.path.join(
-            os.path.dirname(__file__), 'vic', 'version.py')
+            os.path.dirname(__file__), 'tonic', 'version.py')
 
     a = open(filename, 'w')
     try:
@@ -60,9 +60,9 @@ else:
 
     if pipe is None or pipe.returncode != 0:
         # no git, or not in git dir
-        if os.path.exists('VICpy/version.py'):
+        if os.path.exists('tonic/version.py'):
             warnings.warn("WARNING: Couldn't get git revision, using existing "
-                          "VICpy/version.py")
+                          "tonic/version.py")
             write_version = False
         else:
             warnings.warn("WARNING: Couldn't get git revision, using generic "
@@ -92,20 +92,12 @@ if write_version:
 
 # -------------------------------------------------------------------- #
 # Run Setup
-setup(name='VICpy',
+setup(name='tonic',
       version=FULLVERSION,
-      description='VICpy is a Python toolkit for the VIC Hydrology Model',
-      long_description='http://www.hydro.washington.edu/Lettenmaier/Models/VIC/Overview/ModelOverview.shtml',
+      description='tonic is a Python toolkit for distributed hydrologic modeling',
       author='Joe Hamman',
       author_email='jhamman@hydro.washington.edu',
-      install_requires=['scipy >= 0.13', 'numpy >= 1.8',
-                        'netCDF4 >= 1.0.6', 'matplotlib >= 1.3.1'],
-      tests_require=['pytest >= 2.5.2'],
-      url='https://github.com/jhamman/VICpy',
-      test_suite='pytest.collector',
-      packages=['vic'],
-      platform=['any'],
-      # py_modules=['vic.forcing_tools', 'vic.param_tools',
-      #             'vic.processing_tools'],
-      scripts=['scripts/vicpy'])
+      url='https://github.com/jhamman/tonic',
+      packages=['tonic', 'tonic.models', 'tonic.data_tools'],
+      scripts=['scripts/vic_utils'])
 # -------------------------------------------------------------------- #

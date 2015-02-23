@@ -12,8 +12,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from .share import read_netcdf
-from .plot_utils import sub_plot_pcolor, cmap_discretize
+from tonic.io import read_netcdf
+from tonic.plot_utils import sub_plot_pcolor, cmap_discretize
 
 description = 'Create plots comparing two sets of VIC soil parameters'
 help = 'Create plots comparing two sets of VIC soil parameters'
@@ -86,8 +86,6 @@ def _run(args, ):
                                        'amin': -500,
                                        'amax': 500,
                                        'amap': cmap_discretize('cm.RdBu')}}
-                       # 'Nveg': {'vmin': 0, 'vmax': 10, 'amin': -2, 'amax': 2,
-                            # 'amap': cmap_discretize('cm.RdBu_r')}}
 
     if not plot_atts_9:
         plot_atts_9 = {'soil_density': {'vmin': 0,
@@ -226,10 +224,10 @@ def my_plot3(lons, lats, d1, d2, units=None,
     d1 = np.ma.masked_where(mask, d1)
     d2 = np.ma.masked_where(mask, d2)
 
-    anom = d1-d2
+    anom = d1 - d2
 
     if amin is None:
-        amin = -1*np.max(np.abs(anom))
+        amin = -1 * np.max(np.abs(anom))
     if amax is None:
         amax = np.max(np.abs(anom))
 
@@ -262,9 +260,9 @@ def my_plot9(lons, lats, d1, d2, units=None,
     if vmax is None:
         vmax = d1.max()
 
-    anom = d1-d2
+    anom = d1 - d2
     if amin is None:
-        amin = -1*np.max(np.abs(anom))
+        amin = -1 * np.max(np.abs(anom))
     if amax is None:
         amax = np.max(np.abs(anom))
 

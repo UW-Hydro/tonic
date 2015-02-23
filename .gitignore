@@ -51,3 +51,5 @@ plots/
 ehthumbs.db
 Thumbs.db
 *.sublime-*
+
+tonic.egg-info

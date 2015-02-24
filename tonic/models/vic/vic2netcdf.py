@@ -18,7 +18,7 @@ from __future__ import print_function
 from os import path
 from glob import glob
 from re import findall
-from collections import OrderedDict, deque
+from collections import deque
 from bisect import bisect_left
 from getpass import getuser
 from datetime import datetime, timedelta
@@ -92,6 +92,10 @@ class Point(object):
                                   usecols=self.usecols,
                                   names=self.names)
 
+    def _open_netcdf(self):
+        print('opening ascii file: {0}'.format(self.filename))
+        self.f = Dataset(self.filename, 'r')
+
     def _read_ascii(self, count=None):
         self.df = self._reader.get_chunk(count)
 
@@ -111,10 +115,10 @@ class Point(object):
         return
 
     def _read_netcdf(self):
-        raise ValueError('Can only take ascii or binary VIC \
-                         output at this time.')
-        print('reading netcdf file: {0}'.format(self.filename))
-        return
+        data = {}
+        for key in self.names:
+            data[key] = np.squeeze(self.f.variables[key][:])
+        self.df = DataFrame(data)
 
     def close(self):
         print('closing file: {0}'.format(self.filename))
@@ -187,6 +191,9 @@ class Plist(deque):
                 p.open = p._open_binary
                 p.read = p._read_binary
                 p.dt = np.dtype(zip(p.names, p.bin_dtypes))
+            elif fileformat == 'netcdf':
+                p.open = p._open_netcdf
+                p.read = p._read_netcdf
             else:
                 raise ValueError('Unknown file format: {0}'.format(fileformat))
         return
@@ -491,8 +498,7 @@ def _run(args):
         for k, v in config_dict.items():
             if type(v['column']) == int:
                 v['column'] = list([v['column']])
-        fields = OrderedDict(sorted(config_dict.items(),
-                             key=lambda x: x[1]['column'][0]))
+        fields = config_dict
 
         vic2nc(options, global_atts, domain_dict, fields)
         # ------------------------------------------------------------ #
@@ -568,7 +574,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
         vic_ordtime = date2num(vic_datelist, TIMEUNITS,
                                calendar=options['calendar'])
 
-    elif options['input_file_format'].lower() == 'binary':
+    elif options['input_file_format'].lower() in ['binary', 'netcdf']:
         vic_datelist, vic_ordtime = make_dates(options['bin_start_date'],
                                                options['bin_end_date'],
                                                options['bin_dt_sec'],

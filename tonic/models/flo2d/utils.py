@@ -23,7 +23,7 @@ def esriprj2standards(shapeprj_path, kind='proj4'):
     shapeprj_path : str
         Filepath to ESRI style projection file.
     kind : str {'prj', 'wkt', 'proj4', 'epsg'}
-        Projection standard.
+        Projection standard output type.
 
     Returns
     ----------
@@ -76,7 +76,7 @@ def make_coordinates(arr):
 
 
 def grid_flo2d_depth(fname):
-    '''Read and grid flow2d depth file output
+    '''Read and grid FLO-2D depth file output
 
     Parameters
     ----------
@@ -99,8 +99,7 @@ def grid_flo2d_depth(fname):
     gys, gxs = np.meshgrid(ys, xs)
 
     combined = np.dstack(([gys.ravel(), gxs.ravel()]))[0]
-    points = list(np.vstack((np.array(df.y.values),
-                             np.array(df.x.values))).transpose())
+    points = list(np.vstack((df.y.values, df.x.values)).transpose())
 
     mytree = cKDTree(combined)
     _, indexes = mytree.query(points, k=1)

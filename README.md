@@ -1,6 +1,8 @@
 TONIC
 =====
 
+[![Build Status](https://travis-ci.org/UW-Hydro/tonic.svg?branch=develop)](https://travis-ci.org/UW-Hydro/tonic)
+
 `tonic` is a toolkit for working with distributed hydrologic models and their output.
 
 This is truely a work in progress...
@@ -21,7 +23,7 @@ This is truely a work in progress...
 
 ## Install:
 Dependencies:
-- python 3
+- python 2.7 or greater
 - netCDF4
 - xray
 - matplotlib

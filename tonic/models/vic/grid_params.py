@@ -946,15 +946,13 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
 
 # -------------------------------------------------------------------- #
-def soil(in_file, nlayers=3):
+def soil(in_file, c=Cols(nlayers=3)):
     """
     Load the entire soil file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
     """
     print('reading {0}'.format(in_file))
     data = np.loadtxt(in_file)
-
-    c = Cols(nlayers=nlayers)
 
     soil_dict = OrderedDict()
     for var, columns in c.soil_param.items():
@@ -965,7 +963,7 @@ def soil(in_file, nlayers=3):
 
 
 # -------------------------------------------------------------------- #
-def snow(snow_file, soil_dict, snow_bands=5):
+def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
     """
     Load the entire snow file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
@@ -974,8 +972,6 @@ def snow(snow_file, soil_dict, snow_bands=5):
     print('reading {0}'.format(snow_file))
 
     data = np.loadtxt(snow_file)
-
-    c = Cols(snow_bands=snow_bands)
 
     snow_dict = OrderedDict()
     for var in c.snow_param:
@@ -1082,7 +1078,7 @@ def veg(veg_file, soil_dict, max_roots=3, veg_classes=11,
 
 
 # -------------------------------------------------------------------- #
-def veg_class(veg_file, maxcols=58, skiprows=3):
+def veg_class(veg_file, maxcols=58, skiprows=3, c=Cols()):
     """
     Load the entire vegetation library file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
@@ -1094,8 +1090,6 @@ def veg_class(veg_file, maxcols=58, skiprows=3):
     print(usecols, maxcols, skiprows)
 
     data = np.loadtxt(veg_file, usecols=usecols, skiprows=skiprows)
-
-    c = Cols()
 
     veglib_dict = OrderedDict()
     for var in c.veglib:

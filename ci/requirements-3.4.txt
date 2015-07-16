@@ -6,3 +6,4 @@ pandas
 pytest
 xray
 configobj
+basemap

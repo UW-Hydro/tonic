@@ -295,7 +295,7 @@ class Segment(object):
             if hasattr(self.f, attribute):
                 print(
                     'WARNING: Attribute {0} already exists'.format(attribute))
-                print('Renaming to g_{0} to ovoid '
+                print('Renaming to g_{0} to avoid '
                       'overwriting.'.format(attribute))
                 attribute = 'g_{0}'.format(attribute)
             setattr(self.f, attribute, value)

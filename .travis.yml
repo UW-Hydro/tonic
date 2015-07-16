@@ -8,12 +8,29 @@ python:
   - "3.3"
   - "3.4"
 
+# Setup anaconda
+before_install:
+  - wget http://repo.continuum.io/miniconda/Miniconda-2.2.2-Linux-x86_64.sh -O miniconda.sh
+  - chmod +x miniconda.sh
+  - ./miniconda.sh -b
+  - export PATH=/home/travis/anaconda/bin:$PATH
+  # Update conda itself
+  - conda update --yes conda
+
 install:
+  - conda create --yes --name=tonic_test_env python=$TRAVIS_PYTHON_VERSION --file=ci/requirements-$TRAVIS_PYTHON_VERSION.txt
+  - source activate tonic_test_env
   - python setup.py install
 
 # command to run tests
 script:
+  - which python
+  - python --version
+  - conda list
+  - pip freeze
+  - echo $PATH
   - vic_utils -h
+  - py.test
 
 notifications:
   webhooks:

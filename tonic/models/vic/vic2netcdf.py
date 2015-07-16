@@ -40,7 +40,7 @@ help = 'Convert a set of VIC ascii outputs to gridded netCDF'
 # -------------------------------------------------------------------- #
 SECSPERDAY = 86400.0
 
-REFERENCE_STRING = '0001-1-1 0:0:0'
+REFERENCE_STRING = '0001-01-01 00:00:00'
 TIMEUNITS = 'days since {0}'.format(REFERENCE_STRING)  # (MUST BE DAYS)!
 TIMESTAMPFORM = '%Y-%m-%d-%H'
 
@@ -93,7 +93,7 @@ class Point(object):
                                   names=self.names)
 
     def _open_netcdf(self):
-        print('opening ascii file: {0}'.format(self.filename))
+        print('opening netcdf file: {0}'.format(self.filename))
         self.f = Dataset(self.filename, 'r')
 
     def _read_ascii(self, count=None):
@@ -190,7 +190,7 @@ class Plist(deque):
             elif fileformat == 'binary':
                 p.open = p._open_binary
                 p.read = p._read_binary
-                p.dt = np.dtype(zip(p.names, p.bin_dtypes))
+                p.dt = np.dtype(list(zip(p.names, p.bin_dtypes)))
             elif fileformat == 'netcdf':
                 p.open = p._open_netcdf
                 p.read = p._read_netcdf
@@ -251,13 +251,15 @@ class Segment(object):
                                                         getuser()),
                    institution='University of Washington',
                    source=sys.argv[0],
-                   references='Primary Historical Reference for VIC: Liang, \
-                        X., D. P. Lettenmaier, E. F. Wood, and S. J. Burges, \
-                        1994: A Simple hydrologically Based Model of Land \
-                        Surface Water and Energy Fluxes for GSMs, J. Geophys. \
-                        Res., 99(D7), 14,415-14,428.',
-                   comment='Output from the Variable Infiltration Capacity \
-                        (VIC) Macroscale Hydrologic Model',
+                   references=(
+                       'Primary Historical Reference for VIC: Liang,'
+                       'X., D. P. Lettenmaier, E. F. Wood, and S. J. Burges,'
+                       '1994: A Simple hydrologically Based Model of Land'
+                       'Surface Water and Energy Fluxes for GSMs, J. Geophys.'
+                       'Res., 99(D7), 14,415-14,428.'),
+                   comment=(
+                       'Output from the Variable Infiltration Capacity'
+                       '(VIC) Macroscale Hydrologic Model'),
                    conventions='CF-1.6',
                    target_grid_file='unknown',
                    username=None,
@@ -291,10 +293,10 @@ class Segment(object):
 
         for attribute, value in kwargs.items():
             if hasattr(self.f, attribute):
-                print('WARNING: Attribute {0} already \
-                      exists'.format(attribute))
-                print('Renaming to g_{0} to ovoid \
-                      overwriting.'.format(attribute))
+                print(
+                    'WARNING: Attribute {0} already exists'.format(attribute))
+                print('Renaming to g_{0} to avoid '
+                      'overwriting.'.format(attribute))
                 attribute = 'g_{0}'.format(attribute)
             setattr(self.f, attribute, value)
         return
@@ -316,9 +318,10 @@ End Date: {5}
 
     def nc_time(self, t0, t1, times, calendar):
         """ define time dimension (and write data) """
-        time = self.f.createDimension('time', len(times[self.i0:self.i1]))
+        self.f.createDimension('time', len(times[self.i0:self.i1]))
         time = self.f.createVariable('time', 'f8', ('time', ))
         time[:] = times[self.i0:self.i1]
+        time.long_name = 'time'
         time.units = TIMEUNITS
         time.calendar = calendar
         self.count = len(time)
@@ -336,7 +339,7 @@ End Date: {5}
                     dimensions.append(dim)
                     self.f.createDimension(dim, getattr(ncvar, dim))
             # Create variable
-            if "_FillValue" in ncvar.attributes.keys():
+            if "_FillValue" in ncvar.attributes:
                 fill_val = ncvar.attributes['_FillValue']
                 del ncvar.attributes['_FillValue']
             else:
@@ -385,8 +388,8 @@ End Date: {5}
                     write_out_var = False
 
             if write_out_var:
-                ncols = len(self.f.dimensions[field['dim4']])
-                if 'dim4' in field.keys():
+                if 'dim4' in field:
+                    ncols = len(self.f.dimensions[field['dim4']])
                     if len(field['column']) == ncols:
                         # 4d var
                         coords = ('time',) + tuple([field['dim4']]) \
@@ -402,7 +405,7 @@ End Date: {5}
                     coords = ('time',) + tuple(y_x_dims)
                     self.three_dim_vars.append(name)
 
-                if 'type' in field.keys():
+                if 'type' in field:
                     prec = field['type']
                 else:
                     prec = prec_global
@@ -412,7 +415,7 @@ End Date: {5}
                                                           fill_value=fill_val,
                                                           zlib=False)
 
-                if 'units' in field.keys():
+                if 'units' in field:
                     self.fields[name].long_name = name
                     self.fields[name].coordinates = 'lon lat'
                     for key, val in field.items():
@@ -425,15 +428,14 @@ End Date: {5}
     def allocate(self):
         self.data = {}
         for name, field in self.fields.items():
+            self.data[name] = np.atleast_3d(np.zeros_like(field))
             if hasattr(field, '_FillValue'):
-                self.data[name] = np.zeros_like(field) + field._FillValue
-            else:
-                self.data[name] = np.zeros_like(field)
+                self.data[name][:] = field._FillValue
 
     def nc_add_data_to_array(self, point):
         for name in self.three_dim_vars:
-            self.data[name][:, point.y,
-                            point.x] = point.df[name].values[self.slice]
+            self.data[name][:, point.y, point.x] = \
+                point.df[name].values[self.slice]
         for name in self.four_dim_vars:
             varshape = self.f.variables[name].shape[1]
             for i in range(varshape):
@@ -494,10 +496,7 @@ def _run(args):
         else:
             domain_dict = None
 
-        # set aside fields dict (sort by column)
-        for k, v in config_dict.items():
-            if type(v['column']) == int:
-                v['column'] = list([v['column']])
+        # set aside fields dict
         fields = config_dict
 
         vic2nc(options, global_atts, domain_dict, fields)
@@ -570,9 +569,18 @@ def vic2nc(options, global_atts, domain_dict, fields):
     # ---------------------------------------------------------------- #
     # Get timestamps
     if options['input_file_format'].lower() == 'ascii':
-        vic_datelist = get_dates(files[0])
-        vic_ordtime = date2num(vic_datelist, TIMEUNITS,
-                               calendar=options['calendar'])
+        if ('bin_start_date' in options
+            and 'bin_end_date' in options
+                and 'bin_dt_sec' in options):
+            vic_datelist, vic_ordtime = make_dates(
+                options['bin_start_date'],
+                options['bin_end_date'],
+                options['bin_dt_sec'],
+                calendar=options['calendar'])
+        else:
+            vic_datelist = get_dates(files[0])
+            vic_ordtime = date2num(vic_datelist, TIMEUNITS,
+                                   calendar=options['calendar'])
 
     elif options['input_file_format'].lower() in ['binary', 'netcdf']:
         vic_datelist, vic_ordtime = make_dates(options['bin_start_date'],
@@ -590,8 +598,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
     if options['start_date']:
         start_date = datetime.strptime(options['start_date'], TIMESTAMPFORM)
         if start_date < vic_datelist[0]:
-            print("WARNING: Start date in configuration file is before \
-                  first date in file.")
+            print("WARNING: Start date in configuration file is before "
+                  "first date in file.")
             start_date = vic_datelist[0]
             print('WARNING: New start date is {0}'.format(start_date))
     else:
@@ -600,8 +608,8 @@ def vic2nc(options, global_atts, domain_dict, fields):
     if options['end_date']:
         end_date = datetime.strptime(options['end_date'], TIMESTAMPFORM)
         if end_date > vic_datelist[-1]:
-            print("WARNING: End date in configuration file is after \
-                  last date in file.")
+            print("WARNING: End date in configuration file is after "
+                  "last date in file.")
             end_date = vic_datelist[-1]
             print('WARNING: New end date is {0}'.format(end_date))
     else:
@@ -726,7 +734,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
 
     for name, field in fields.items():
 
-        if len(field['column']) > 1:
+        if not np.isscalar(field['column']):
             # multiple levels
             for i, col in enumerate(field['column']):
                 names.append(name + str(i))

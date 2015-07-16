@@ -94,7 +94,7 @@ def write_ascii(array, point, out_prefix, path, append, verbose=False):
 
     if verbose:
         print('Writing ASCII Data to'.format(out_file))
-    np.savetxt(f, array, fmt='%1.4f')
+    np.savetxt(f, array, fmt='%12.7g')
     f.close()
     return
 # -------------------------------------------------------------------- #

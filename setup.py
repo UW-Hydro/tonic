@@ -3,10 +3,7 @@ import os
 import re
 import sys
 import warnings
-try:
-    from setuptools import setup
-except:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 MAJOR = 0
 MINOR = 0
@@ -98,7 +95,6 @@ setup(name='tonic',
       author='Joe Hamman',
       author_email='jhamman@hydro.washington.edu',
       url='https://github.com/jhamman/tonic',
-      packages=['tonic'],
-      modules=['tonic.models', 'tonic.data_tools'],
+      packages=find_packages(),
       scripts=['scripts/vic_utils'])
 # -------------------------------------------------------------------- #

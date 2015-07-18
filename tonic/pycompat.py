@@ -32,7 +32,7 @@ else:  # pragma: no cover
 
     pyrange = xrange
     from itertools import izip as pyzip
-    from intertoos import imap as pymap
+    from itertools import imap as pymap
     pyreduce = reduce
     import __builtin__ as builtins
     from ConfigParser import SafeConfigParser

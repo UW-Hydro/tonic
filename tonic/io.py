@@ -2,7 +2,7 @@
 """Input/Output functions"""
 from netCDF4 import Dataset
 import configobj
-from tonic.pycompat import OrderedDict, SafeConfigParser
+from .pycompat import OrderedDict, SafeConfigParser
 
 
 # -------------------------------------------------------------------- #

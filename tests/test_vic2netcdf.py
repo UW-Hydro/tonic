@@ -1,4 +1,3 @@
-#!/usr/local/env python
 """
 vic2netcdf_unit_test.py
 

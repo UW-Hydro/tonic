@@ -15,7 +15,7 @@ if PY3:  # pragma: no cover
 
     pyrange = range
     pyzip = zip
-    from functools import reduce
+    from functools import reduce as pyreduce
     import builtins
     from configparser import SafeConfigParser
 else:  # pragma: no cover

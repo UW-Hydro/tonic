@@ -15,7 +15,7 @@ if PY3:  # pragma: no cover
 
     pyrange = range
     pyzip = zip
-    from functools import reduce
+    from functools import reduce as pyreduce
     import builtins
     from configparser import SafeConfigParser
 else:  # pragma: no cover
@@ -32,7 +32,7 @@ else:  # pragma: no cover
 
     pyrange = xrange
     from itertools import izip as pyzip
-    from intertoos import imap as pymap
+    from itertools import imap as pymap
     pyreduce = reduce
     import __builtin__ as builtins
     from ConfigParser import SafeConfigParser

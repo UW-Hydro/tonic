@@ -1,4 +1,3 @@
-#!/usr/local/env python
 """Set to run with pytest
 
 Usage: py.test

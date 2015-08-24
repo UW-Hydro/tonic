@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from tonic.io import read_netcdf
 from tonic.plot_utils import sub_plot_pcolor, cmap_discretize
+from tonic.pycompat import pyrange
 
 description = 'Create plots comparing two sets of VIC soil parameters'
 help = 'Create plots comparing two sets of VIC soil parameters'
@@ -275,7 +276,7 @@ def my_plot9(lons, lats, d1, d2, units=None,
     f, axarr = plt.subplots(3, 3, figsize=(13.5, 9), dpi=150)
     f.tight_layout()
 
-    for layer in xrange(3):
+    for layer in pyrange(3):
         plt.sca(axarr[layer, 0])
         sub_plot_pcolor(lons, lats, np.ma.masked_where(mask, d1[layer]),
                         vmin=vmin, vmax=vmax, units=units,

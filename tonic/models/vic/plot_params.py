@@ -8,7 +8,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from mpl_toolkits.basemap import Basemap
-from share import read_netcdf
+from tonic.io import read_netcdf
+from tonic.pycompat import pyrange
 description = ''
 help = ''
 
@@ -43,7 +44,7 @@ def plot_veg_types(yc, xc, cv, baresoil):
 
     gs1 = gridspec.GridSpec(4, 3)
 
-    for loc in xrange(11):
+    for loc in pyrange(11):
         ax = fig.add_subplot(gs1[loc])
         plot_map(ax, yc, xc, cv[loc], projection_parameters, vmin=0,
                  cmap='Jet')

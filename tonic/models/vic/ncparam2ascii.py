@@ -10,6 +10,7 @@ import numpy as np
 from scipy.spatial import cKDTree
 from . import grid_params
 from tonic.io import read_netcdf
+from tonic.pycompat import pyzip, iteritems
 
 FILL_VALUE = -9999
 
@@ -111,7 +112,7 @@ Notes about RASM soil parameter file generations:
     numcells = data['mask'].size
 
     arrayshape = (numcells, 1 + np.max([np.max(cols) for v, cols in
-                                        c.soil_param.iteritems()]))
+                                        iteritems(c.soil_param)]))
     soil_params = np.empty(arrayshape)
     dtypes = ['%1i'] * arrayshape[1]
     # ---------------------------------------------------------------- #
@@ -190,7 +191,7 @@ Notes about RASM soil parameter file generations:
     # For rasm, all cols are shifted one to right to make room for nveg in
     # col 0
     i = -1
-    for var, cols in c.soil_param.iteritems():
+    for var, cols in iteritems(c.soil_param):
         for col in cols:
             dtypes[col] = f.soil_param[var]
 
@@ -260,7 +261,7 @@ Notes about RASM soil parameter file generations:
 
     # ---------------------------------------------------------------- #
     # Print summary of variables
-    for var, cols in c.soil_param.iteritems():
+    for var, cols in iteritems(c.soil_param):
         print('{0: <12}--> min: {1:<09.3f}, max: {2:<09.3f}, mean:'
               ' {3:<09.3f}'.format(var,
                                    soil_params[:, cols].min(),
@@ -361,7 +362,7 @@ def veg(data, xinds, yinds, veg_file, rootzones=3, global_lai=True):
 
     f = open(veg_file, 'w')
 
-    for y, x in zip(yinds, xinds):
+    for y, x in pyzip(yinds, xinds):
         gridcell = int(data['gridcell'][y, x])
         n_veg = int(data['Nveg'][y, x])
         cv = data['Cv'][:, y, x]

@@ -33,6 +33,7 @@ import numpy as np
 import time as tm
 from tonic.io import read_config, SafeConfigParser
 from tonic.tonic import calc_grid, get_grid_inds, NcVar
+from tonic.pycompat import pyzip, pyrange
 
 description = 'Convert a set of VIC ascii outputs to gridded netCDF'
 help = 'Convert a set of VIC ascii outputs to gridded netCDF'
@@ -155,12 +156,12 @@ class Plist(deque):
         return np.array([p.lat for p in self])
 
     def add_xs(self, xinds):
-        for i in range(len(self)):
+        for i in pyrange(len(self)):
             self[i].x = xinds[i]
         return
 
     def add_ys(self, yinds):
-        for i in range(len(self)):
+        for i in pyrange(len(self)):
             self[i].y = yinds[i]
         return
 
@@ -190,7 +191,7 @@ class Plist(deque):
             elif fileformat == 'binary':
                 p.open = p._open_binary
                 p.read = p._read_binary
-                p.dt = np.dtype(list(zip(p.names, p.bin_dtypes)))
+                p.dt = np.dtype(list(pyzip(p.names, p.bin_dtypes)))
             elif fileformat == 'netcdf':
                 p.open = p._open_netcdf
                 p.read = p._read_netcdf
@@ -438,7 +439,7 @@ End Date: {5}
                 point.df[name].values[self.slice]
         for name in self.four_dim_vars:
             varshape = self.f.variables[name].shape[1]
-            for i in range(varshape):
+            for i in pyrange(varshape):
                 subname = name + str(i)
                 self.data[name][:, i, point.y,
                                 point.x] = point.df[subname].values[self.slice]
@@ -452,7 +453,7 @@ End Date: {5}
                 self.f.variables[name][:, ys, xs] = data
             for name in self.four_dim_vars:
                 varshape = self.f.variables[name].shape[1]
-                for i in range(varshape):
+                for i in pyrange(varshape):
                     sn = name + str(i)
                     self.f.variables[name][:, i, ys,
                                            xs] = p.df[sn].values[self.slice]
@@ -640,7 +641,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
             + end_date.month - start_date.month + 1
         month = start_date.month
         year = start_date.year
-        for i in range(num_segments + 1):
+        for i in pyrange(num_segments + 1):
             segment_dates.append(datetime(year, month, 1))
             month += 1
             if month == 13:
@@ -649,13 +650,13 @@ def vic2nc(options, global_atts, domain_dict, fields):
     elif options['time_segment'] == 'year':
         num_segments = end_date.year - start_date.year + 1
         year = start_date.year
-        for i in range(num_segments + 1):
+        for i in pyrange(num_segments + 1):
             segment_dates.append(datetime(year, 1, 1))
             year += 1
     elif options['time_segment'] == 'decade':
         num_segments = (end_date.year - start_date.year) / 10 + 1
         year = start_date.year
-        for i in range(num_segments + 1):
+        for i in pyrange(num_segments + 1):
             segment_dates.append(datetime(year, 1, 1))
             year += 10
     elif options['time_segment'] == 'all':
@@ -676,7 +677,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
     # Setup Segments
     segments = deque()
 
-    for num in range(num_segments):
+    for num in pyrange(num_segments):
         # Segment time bounds
         t0 = segment_dates[num]
         t1 = segment_dates[num + 1]
@@ -801,7 +802,7 @@ def vic2nc(options, global_atts, domain_dict, fields):
     # order. Note that sorted(usecols) is not strictly necessary, since
     # apparently that is done in read_table, but it keeps the names and columns
     # in the same order
-    names = [x for (y, x) in sorted(zip(usecols, names))]
+    names = [x for (y, x) in sorted(pyzip(usecols, names))]
     usecols = sorted(usecols)
     points.set_names(names)
     points.set_usecols(usecols)

@@ -1,15 +1,8 @@
 #!/usr/bin/env python
 """Input/Output functions"""
 from netCDF4 import Dataset
-try:
-    from cyordereddict import OrderedDict
-except:
-    from collections import OrderedDict
-try:
-    from configparser import SafeConfigParser
-except:
-    from ConfigParser import SafeConfigParser
 import configobj
+from .pycompat import OrderedDict, SafeConfigParser
 
 
 # -------------------------------------------------------------------- #

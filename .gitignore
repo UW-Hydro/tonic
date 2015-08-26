@@ -4,6 +4,8 @@ data/
 modelforcings/
 modeloutput/
 plots/
+build/
+dist/
 #file types to ignore
 *junk*
 *tmp*

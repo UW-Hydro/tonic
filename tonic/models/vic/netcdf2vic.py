@@ -6,6 +6,7 @@ import numpy as np
 import struct
 import os
 from tonic.io import read_netcdf, read_config
+from tonic.pycompat import pyzip
 
 description = 'Convert netCDF meteorological forcings to VIC sytle format'
 help = 'Convert netCDF meteorological forcings to VIC sytle format'
@@ -47,7 +48,7 @@ def _run(args):
             xs[posinds] -= 360
             print('adjusted xs lon minimum')
 
-            for y, x in zip(yi, xi):
+            for y, x in pyzip(yi, xi):
                 active_flag = False
                 for key in var_keys:
                     if (d[key][:, y, x].all() is np.ma.masked) \
@@ -62,7 +63,7 @@ def _run(args):
         else:
             append = True
 
-        for y, x, point in zip(ylist, xlist, pointlist):
+        for y, x, point in pyzip(ylist, xlist, pointlist):
 
             data = np.empty((d[var_keys[0]].shape[0], len(var_keys)))
 
@@ -94,7 +95,7 @@ def write_ascii(array, point, out_prefix, path, append, verbose=False):
 
     if verbose:
         print('Writing ASCII Data to'.format(out_file))
-    np.savetxt(f, array, fmt='%1.4f')
+    np.savetxt(f, array, fmt='%12.7g')
     f.close()
     return
 # -------------------------------------------------------------------- #

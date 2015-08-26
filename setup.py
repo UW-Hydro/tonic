@@ -3,10 +3,7 @@ import os
 import re
 import sys
 import warnings
-try:
-    from setuptools import setup
-except:
-    from distutils.core import setup
+from setuptools import setup, find_packages
 
 MAJOR = 0
 MINOR = 0
@@ -94,10 +91,10 @@ if write_version:
 # Run Setup
 setup(name='tonic',
       version=FULLVERSION,
-      description='tonic is a Python toolkit for distributed hydrologic modeling',
+      description='tonic is a Python toolkit for distributed hydrologic models',
       author='Joe Hamman',
       author_email='jhamman@hydro.washington.edu',
       url='https://github.com/jhamman/tonic',
-      packages=['tonic', 'tonic.models', 'tonic.data_tools'],
+      packages=find_packages(),
       scripts=['scripts/vic_utils'])
 # -------------------------------------------------------------------- #

@@ -15,7 +15,10 @@ import time as tm
 import socket
 from getpass import getuser
 from collections import OrderedDict
+from warnings import warn
 from tonic.io import read_netcdf
+from tonic.pycompat import pyrange, pyzip
+
 
 # -------------------------------------------------------------------- #
 description = 'Converter for VIC ASCII style parameters to gridded netCDF'
@@ -123,12 +126,11 @@ class Cols(object):
                                    ('lib_albedo', np.arange(16, 28)),
                                    ('lib_veg_rough', np.arange(28, 40)),
                                    ('lib_displacement', np.arange(40, 52)),
-                                   ('lib_wind_h', np.array(52)),
-                                   ('lib_RGL', np.array(53)),
-                                   ('lib_rad_atten', np.array(54)),
-                                   ('lib_wind_atten', np.array(55)),
-                                   ('lib_trunk_ratio', np.array(56)),
-                                   ('lib_snow_albedo', np.array(57))])
+                                   ('lib_wind_h', np.array([52])),
+                                   ('lib_RGL', np.array([53])),
+                                   ('lib_rad_atten', np.array([54])),
+                                   ('lib_wind_atten', np.array([55])),
+                                   ('lib_trunk_ratio', np.array([56]))])
 # -------------------------------------------------------------------- #
 
 
@@ -507,14 +509,14 @@ def calc_grid(lats, lons, decimals=4):
 
     # check that counts and steps make sense
     if lon_step != lat_step:
-        print('WARNING: lon_step ({0}) and lat_step ({1}) do not '
-              'match'.format(lon_step, lat_step))
+        warn('lon_step ({0}) and lat_step ({1}) do not '
+             'match'.format(lon_step, lat_step))
     if lat_count / len(ulats) < 0.95:
-        print('WARNING: lat_count of mode is less than 95% ({0}%) of'
-              ' len(lats)'.format(lat_count / len(ulats)))
+        warn('lat_count of mode is less than 95% ({0}%) of'
+             ' len(lats)'.format(lat_count / len(ulats)))
     if lon_count / len(ulons) < 0.95:
-        print('WARNING: lon_count of mode is less than 95% ({0}%) of'
-              ' len(lons)'.format(lon_count / len(ulons)))
+        warn('lon_count of mode is less than 95% ({0}%) of'
+             ' len(lons)'.format(lon_count / len(ulons)))
 
     if lats.min() < -55 and lats.max() > 70:
         # assume global grid
@@ -644,7 +646,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
                 steps = mydict[var].shape[1]
                 out_dict[var] = np.ma.zeros((steps, ysize, xsize),
                                             dtype=dtype)
-                for i in xrange(steps):
+                for i in pyrange(steps):
                     out_dict[var][i, yi, xi] = mydict[var][:, i]
                 out_dict[var][:, ymask, xmask] = fill_val
 
@@ -653,10 +655,10 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
                 k = mydict[var].shape[2]
                 out_dict[var] = np.ma.zeros((j, k, ysize, xsize),
                                             dtype=dtype)
-                for jj in xrange(j):
-                    for kk in xrange(k):
+                for jj in pyrange(j):
+                    for kk in pyrange(k):
                         out_dict[var][jj, kk, yi, xi] = mydict[var][:, jj, kk]
-                for y, x in zip(ymask, xmask):
+                for y, x in pyzip(ymask, xmask):
                     out_dict[var][:, :, y, x] = fill_val
 
             out_dict[var] = np.ma.masked_values(out_dict[var], fill_val)
@@ -710,7 +712,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veg_dict, veglib_dict,
             new = np.zeros(shape) + FILLVALUE_F
             new[:-1, :, yi, xi] = veglib_dict[lib_var][:, :, np.newaxis]
             new[-1, :, yi, xi] = 0
-            for y, x in zip(ymask, xmask):
+            for y, x in pyzip(ymask, xmask):
                 new[:, :, y, x] = fill_val
             out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
 
@@ -946,15 +948,13 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
 
 # -------------------------------------------------------------------- #
-def soil(in_file, nlayers=3):
+def soil(in_file, c=Cols(nlayers=3)):
     """
     Load the entire soil file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
     """
     print('reading {0}'.format(in_file))
     data = np.loadtxt(in_file)
-
-    c = Cols(nlayers=nlayers)
 
     soil_dict = OrderedDict()
     for var, columns in c.soil_param.items():
@@ -965,7 +965,7 @@ def soil(in_file, nlayers=3):
 
 
 # -------------------------------------------------------------------- #
-def snow(snow_file, soil_dict, snow_bands=5):
+def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
     """
     Load the entire snow file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
@@ -974,8 +974,6 @@ def snow(snow_file, soil_dict, snow_bands=5):
     print('reading {0}'.format(snow_file))
 
     data = np.loadtxt(snow_file)
-
-    c = Cols(snow_bands=snow_bands)
 
     snow_dict = OrderedDict()
     for var in c.snow_param:
@@ -1025,7 +1023,6 @@ def veg(veg_file, soil_dict, max_roots=3, veg_classes=11,
 
     row = 0
     cell = 0
-
     while row < len(lines):
         line = lines[row].strip('\n').split(' ')
         gridcel[cell], nveg[cell] = np.array(line).astype(int)
@@ -1082,7 +1079,7 @@ def veg(veg_file, soil_dict, max_roots=3, veg_classes=11,
 
 
 # -------------------------------------------------------------------- #
-def veg_class(veg_file, maxcols=58, skiprows=3):
+def veg_class(veg_file, maxcols=57, skiprows=3, c=Cols()):
     """
     Load the entire vegetation library file into a dictionary of numpy arrays.
     Also reorders data to match gridcell order of soil file.
@@ -1091,11 +1088,8 @@ def veg_class(veg_file, maxcols=58, skiprows=3):
     print('reading {0}'.format(veg_file))
 
     usecols = np.arange(maxcols)
-    print(usecols, maxcols, skiprows)
 
     data = np.loadtxt(veg_file, usecols=usecols, skiprows=skiprows)
-
-    c = Cols()
 
     veglib_dict = OrderedDict()
     for var in c.veglib:

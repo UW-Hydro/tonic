@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 """Input/Output functions"""
+import os
+from collections import Sequence
 from netCDF4 import Dataset
 import configobj
-from .pycompat import OrderedDict, SafeConfigParser
+from .pycompat import OrderedDict, SafeConfigParser, basestring, unicode_type
 
 
 # -------------------------------------------------------------------- #
@@ -66,32 +68,27 @@ def config_type(value):
     First see the value is a bool, then try float, finally return a string.
     """
     val_list = [x.strip() for x in value.split(',')]
-    if len(val_list) == 1:
-        value = val_list[0]
-        if value in ['true', 'True', 'TRUE', 'T']:
-            return True
-        elif value in ['false', 'False', 'FALSE', 'F']:
-            return False
-        elif value in ['none', 'None', 'NONE', '']:
-            return None
-        else:
-            try:
-                return int(value)
-            except:
-                pass
-            try:
-                return float(value)
-            except:
-                return value
+    ret_list = []
+
+    for value in val_list:
+        if value.lower() in ['true', 't']:  # True
+            ret_list.append(True)
+        elif value.lower() in ['false', 'f']:  # False
+            ret_list.append(False)
+        elif value.lower() in ['none', '']:  # None
+            ret_list.append(None)
+        elif isint(value):  # int
+            ret_list.append(int(value))
+        elif isfloat(value):  # float
+            ret_list.append(float(value))
+        else:  # string or similar
+            ret_list.append(os.path.expandvars(value))
+
+    if len(ret_list) > 1:
+        return ret_list
     else:
-        try:
-            return list(map(int, val_list))
-        except:
-            pass
-        try:
-            return list(map(float, val_list))
-        except:
-            return val_list
+        return ret_list[0]
+
 # -------------------------------------------------------------------- #
 
 
@@ -134,4 +131,41 @@ def read_netcdf(nc_file, variables=[], coords=False, verbose=True):
                 a[var] = f.variables[var].__dict__
     f.close()
     return d, a
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
+def isfloat(x):
+    '''Test if value is a float'''
+    try:
+        float(x)
+    except ValueError:
+        return False
+    else:
+        return True
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
+def isint(x):
+    '''Test if value is an integer'''
+    if isinstance(x, float) or isinstance(x, basestring) and '.' in x:
+        return False
+    try:
+        a = float(x)
+        b = int(a)
+    except ValueError:
+        return False
+    else:
+        return a == b
+# -------------------------------------------------------------------- #
+
+
+# -------------------------------------------------------------------- #
+def isscalar(x):
+    '''Test if a value is a scalar'''
+    if isinstance(x, (Sequence, basestring, unicode_type)):
+        return False
+    else:
+        return True
 # -------------------------------------------------------------------- #

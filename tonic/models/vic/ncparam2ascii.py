@@ -21,6 +21,7 @@ def _run(args):
     subset(args.nc_params, upleft=args.upleft, lowright=args.lowright,
            outfiles=args.outfiles, soil_file=args.soil_file,
            snow_file=args.snow_file, veg_file=args.veg_file,
+#NOTE: add lake_param veg_hist and blowsnow
            project=args.project, nijssen2arno=args.nijssen2arno)
     return
 # -------------------------------------------------------------------- #
@@ -52,6 +53,7 @@ def subset(param_file, upleft=False, lowright=False, outfiles=1,
         cells, yinds, xinds = find_gridcells(data['mask'])
 
     # write snow and veg files
+#NOTE: add lake_param veg_hist and blowsnow
     if veg_file:
         rootzones = data['root_depth'].shape[1]
         veg(data, xinds, yinds, veg_file, rootzones=rootzones, global_lai=True)
@@ -352,6 +354,7 @@ def snow(data, xinds, yinds, snow_file):
 
 
 # -------------------------------------------------------------------- #
+#NOTE: add lake_param veg_hist and blowsnow
 def veg(data, xinds, yinds, veg_file, rootzones=3, global_lai=True):
     """Write VIC formatted veg parameter file"""
 

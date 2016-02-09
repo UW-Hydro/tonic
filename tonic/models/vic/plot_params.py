@@ -35,7 +35,6 @@ def main():
 def plot_veg_types(yc, xc, cv, baresoil):
     projection_parameters = projection
 
-#NOTE: this is hardcoded to NLDAS - should make it dynamic - use labels from actual veg_lib file
     labels = ['Evergreen Needleleaf', 'Evergreen Broadleaf',
               'Deciduous Needleleaf', 'Deciduous Broadleaf', 'Mixed Cover',
               'Woodland', 'Wooded Grasslands', 'Closed Shrublands',

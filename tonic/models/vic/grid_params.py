@@ -180,10 +180,12 @@ class Cols(object):
 
 # -------------------------------------------------------------------- #
 class Format(object):
-#NOTE: if adding veg_param and lake_param, add their relevant options to arglist
     def __init__(self, nlayers=3, snow_bands=5, organic_fract=False,
                  spatial_frost=False, spatial_snow=False,
-                 july_tavg_supplied=False, veglib_fcan=False):
+                 july_tavg_supplied=False, veglib_fcan=False,
+                 blowing_snow=False, vegparam_lai=False,
+                 vegparam_fcan=False, vegparam_albedo=False,
+                 lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': '%1i',
@@ -250,7 +252,36 @@ class Format(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = '%12.7g'
 
-#NOTE: check how this structure is used (perhaps in output of nc2ascii?); if simply controls formatting of output, add veg_param and lake_param vars
+        # Veg Params
+        self.veg_param = {'gridcell': '%1i',
+                          'Nveg': '%1i',
+                          'veg_class': '%1i',
+                          'Cv': '%12.7g',
+                          'root_depth': '%12.7g',
+                          'root_fract': '%12.7g'}
+        if blowing_snow:
+            self.veg_param['sigma_slope'] = '%12.7g'
+            self.veg_param['lag_one'] = '%12.7g'
+            self.veg_param['fetch'] = '%12.7g'
+        if vegparam_lai:
+            self.veg_param['LAI'] = '%12.7g'
+        if vegparam_fcan:
+            self.veg_param['fcanopy'] = '%12.7g'
+        if vegparam_albedo:
+            self.veg_param['albedo'] = '%12.7g'
+
+        # Lake Params
+        if lakes:
+            self.lake_param = {'gridcell': '%1i',
+                               'lake_idx': '%1i',
+                               'numnod': '%1i',
+                               'mindepth': '%12.7g',
+                               'wfrac': '%12.7g',
+                               'depth_in': '%12.7g',
+                               'rpercent': '%12.7g',
+                               'basin_depth': '%12.7g',
+                               'basin_area': '%12.7g'}
+
 # -------------------------------------------------------------------- #
 
 
@@ -258,9 +289,9 @@ class Format(object):
 class Desc(object):
     def __init__(self, organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False, vegparam_lai=False,
-                 vegparam_fcan=False, vegparam_albedo=False,
-                 lakes=False):
+                 veglib_fcan=False, blowing_snow=False,
+                 vegparam_lai=False, vegparam_fcan=False,
+                 vegparam_albedo=False, lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': '1 = Run Grid Cell, 0 = Do Not Run',
@@ -436,9 +467,9 @@ class Desc(object):
 class Units(object):
     def __init__(self, organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False, vegparam_lai=False,
-                 vegparam_fcan=False, vegparam_albedo=False,
-                 lakes=False):
+                 veglib_fcan=False, blowing_snow=False,
+                 vegparam_lai=False, vegparam_fcan=False,
+                 vegparam_albedo=False, lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': 'N/A',
@@ -539,11 +570,9 @@ class Units(object):
 
 
 # -------------------------------------------------------------------- #
-#NOTE find where args is defined and add lake_file, etc
 def _run(args):
     """
     """
-#NOTE: any way to make lake_file null?  how handled with snow_file?
     nc_file = make_grid(grid_file=args.grid_file,
                         soil_file=args.soil_file,
                         snow_file=args.snow_file,
@@ -606,7 +635,8 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
                      spatial_snow=spatial_snow,
                      july_tavg_supplied=july_tavg_supplied))
 
-    cells = len(soil_dict['gridcell'])
+    if not cells:
+        cells = len(soil_dict['gridcell'])
 
     if snow_file:
         snow_dict = snow(snow_file, soil_dict, c=Cols(snow_bands=snow_bands))
@@ -622,58 +652,43 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
         lib_bare_idx = -1
 
     if veg_file:
-        veg_dict = veg(veg_file, soil_dict, veg_classes=veg_classes,
-                       max_roots=max_roots, cells=cells,
-                       blowing_snow=blowing_snow,
-                       vegparam_lai=vegparam_lai,
-                       vegparam_fcan=vegparam_fcan,
-                       vegparam_albedo=vegparam_albedo,
-                       lai_src=lai_src, fcan_src=fcan_src,
-                       alb_src=alb_src)
+        veg_dict = veg(veg_file, soil_dict, veg_classes,
+                       max_roots, cells, blowing_snow,
+                       vegparam_lai, vegparam_fcan,
+                       vegparam_albedo, lai_src,
+                       fcan_src, alb_src)
     else:
         veg_dict = False
 
     if lake_file:
-        lake_dict = lake(lake_file, soil_dict, max_numnod=max_numnod,
-                         cells=cells, lake_profile=lake_profile)
+        lake_dict = lake(lake_file, soil_dict, max_numnod,
+                         cells, lake_profile)
     else:
         lake_dict = False
 
     if grid_file:
         target_grid, target_attrs = read_netcdf(grid_file)
     else:
-#NOTE: can we remove the =?
         target_grid, target_attrs = calc_grid(soil_dict['lats'],
                                               soil_dict['lons'],
-                                              decimals=grid_decimal)
+                                              grid_decimal)
 
-#NOTE: can we remove the =?
-    grid_dict = grid_params(soil_dict, target_grid, snow_dict=snow_dict,
-                            veglib_dict=veglib_dict, veg_dict=veg_dict,
-                            lake_dict=lake_dict, version_in=version_in,
-                            veglib_fcan=veglib_fcan,
-                            lib_bare_idx=lib_bare_idx,
-                            blowing_snow=blowing_snow,
-                            vegparam_lai=vegparam_lai,
-                            vegparam_fcan=vegparam_fcan,
-                            vegparam_albedo=vegparam_albedo, lai_src=lai_src,
-                            fcan_src=fcan_src, alb_src=alb_src)
+    grid_dict = grid_params(soil_dict, target_grid, snow_dict,
+                            veglib_dict, veg_dict, lake_dict,
+                            version_in, veglib_fcan, lib_bare_idx,
+                            blowing_snow, vegparam_lai,
+                            vegparam_fcan, vegparam_albedo,
+                            lai_src, fcan_src, alb_src)
 
     if nc_file:
-#NOTE: can we remove the =?
-        write_netcdf(nc_file, target_attrs,
-                     target_grid=target_grid,
-                     soil_grid=grid_dict['soil_dict'],
-                     snow_grid=grid_dict['snow_dict'],
-                     veg_grid=grid_dict['veg_dict'],
-                     lake_grid=grid_dict['lake_dict'],
-                     version_in=version_in,
-                     organic_fract=organic_fract, spatial_frost=spatial_frost,
-                     spatial_snow=spatial_snow, july_tavg_supplied=july_tavg_supplied,
-                     veglib_fcan=veglib_fcan, blowing_snow=blowing_snow, vegparam_lai=vegparam_lai,
-                     vegparam_fcan=vegparam_fcan, vegparam_albedo=vegparam_albedo,
-                     lai_src=lai_src, fcan_src=fcan_src,
-                     alb_src=alb_src)
+        write_netcdf(nc_file, target_attrs, target_grid,
+                     grid_dict['soil_dict'], grid_dict['snow_dict'],
+                     grid_dict['veg_dict'], grid_dict['lake_dict'],
+                     version_in, organic_fract, spatial_frost,
+                     spatial_snow, july_tavg_supplied,
+                     veglib_fcan, blowing_snow,
+                     vegparam_lai, vegparam_fcan, vegparam_albedo,
+                     lai_src, fcan_src, alb_src)
         return nc_file
     else:
         return grid_dict
@@ -785,10 +800,10 @@ def latlon2yx(plats, plons, glats, glons):
 # -------------------------------------------------------------------- #
 def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
                 lake_dict, version_in='4.2', veglib_fcan=False,
-                lib_bare_idx=-1, blowing_snow=False, vegparam_lai=False,
-                vegparam_fcan=False, vegparam_albedo=False,
-                lai_src=FROM_VEGLIB, fcan_src=FROM_DEFAULT,
-                alb_src=FROM_VEGLIB):
+                lib_bare_idx=-1, blowing_snow=False,
+                vegparam_lai=False, vegparam_fcan=False,
+                vegparam_albedo=False, lai_src=FROM_VEGLIB,
+                fcan_src=FROM_DEFAULT, alb_src=FROM_VEGLIB):
     """
     Reads the coordinate information from the soil_dict and target_grid and
     maps all input dictionaries to the target grid.  Returns a grid_dict with
@@ -830,6 +845,9 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
             if mydict[var].dtype in [np.int, np.int64, np.int32]:
                 fill_val = FILLVALUE_I
                 dtype = np.int
+            elif mydict[var].dtype in [np.str]:
+                fill_val = ''
+                dtype = np.str
             else:
                 fill_val = FILLVALUE_F
                 dtype = np.float
@@ -920,17 +938,20 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
                 new[:, :, :] = out_dicts['veg_dict'][var]
             out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
 
+        varnames = []
         if blowing_snow:
-            varnames = ['sigma_slope','lag_one','fetch']
-            for var in varnames:
-                shape = (nveg_classes, ) + out_dicts['veg_dict'][var].shape[1:]
-                new = np.zeros(shape) + FILLVALUE_F
-                if extra_class:
-                    new[:-1, :, :] = out_dicts['veg_dict'][var]
-                    new[-1, :, :] = bare_vegparam[var]
-                else:
-                    new[:, :, :] = out_dicts['veg_dict'][var]
-                out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+            varnames.append('sigma_slope')
+            varnames.append('lag_one')
+            varnames.append('fetch')
+        for var in varnames:
+            shape = (nveg_classes, ) + out_dicts['veg_dict'][var].shape[1:]
+            new = np.zeros(shape) + FILLVALUE_F
+            if extra_class:
+                new[:-1, :, :] = out_dicts['veg_dict'][var]
+                new[-1, :, :] = bare_vegparam[var]
+            else:
+                new[:, :, :] = out_dicts['veg_dict'][var]
+            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
 
         # Distribute the veglib variables
         # 1st - the 1d vars
@@ -993,10 +1014,10 @@ def write_netcdf(myfile, target_attrs, target_grid,
                  lake_grid=None, version_in='4.2',
                  organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False, vegparam_lai=False,
-                 vegparam_fcan=False, vegparam_albedo=False,
-                 lai_src=FROM_VEGLIB, fcan_src=FROM_DEFAULT,
-                 alb_src=FROM_VEGLIB):
+                 veglib_fcan=False, blowing_snow=False,
+                 vegparam_lai=False, vegparam_fcan=False,
+                 vegparam_albedo=False, lai_src=FROM_VEGLIB,
+                 fcan_src=FROM_DEFAULT, alb_src=FROM_VEGLIB):
     """
     Write the gridded parameters to a netcdf4 file
     Will only write paramters that it is given
@@ -1021,16 +1042,14 @@ def write_netcdf(myfile, target_attrs, target_grid,
     unit = Units(organic_fract=organic_fract, spatial_frost=spatial_frost,
                  spatial_snow=spatial_snow,
                  july_tavg_supplied=july_tavg_supplied,
-                 veglib_fcan=veglib_fcan,
-                 blowing_snow=blowing_snow, vegparam_lai=vegparam_lai,
-                 vegparam_fcan=vegparam_fcan,
+                 veglib_fcan=veglib_fcan, blowing_snow=blowing_snow,
+                 vegparam_lai=vegparam_lai, vegparam_fcan=vegparam_fcan,
                  vegparam_albedo=vegparam_albedo, lakes=lakes)
     desc = Desc(organic_fract=organic_fract, spatial_frost=spatial_frost,
                 spatial_snow=spatial_snow,
                 july_tavg_supplied=july_tavg_supplied,
-                veglib_fcan=veglib_fcan,
-                blowing_snow=blowing_snow, vegparam_lai=vegparam_lai,
-                vegparam_fcan=vegparam_fcan,
+                veglib_fcan=veglib_fcan, blowing_snow=blowing_snow,
+                vegparam_lai=vegparam_lai, vegparam_fcan=vegparam_fcan,
                 vegparam_albedo=vegparam_albedo, lakes=lakes)
 
     # target grid
@@ -1185,7 +1204,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v.long_name = 'month of year'
 
         for var, data in veg_grid.items():
-            if var == 'comment':
+            if var in ['comment']:
                 break
 
             print('writing var: {0} {1}'.format(var, data.shape))
@@ -1284,7 +1303,10 @@ def soil(in_file, c=Cols(nlayers=3, organic_fract=False,
 
     soil_dict = OrderedDict()
     for var, columns in c.soil_param.items():
-        soil_dict[var] = np.squeeze(data[:, columns])
+        if var in ['gridcell', 'run_cell', 'fs_active']:
+            soil_dict[var] = np.squeeze(data[:, columns]).astype(int)
+        else:
+            soil_dict[var] = np.squeeze(data[:, columns])
 
     return soil_dict
 # -------------------------------------------------------------------- #
@@ -1305,6 +1327,7 @@ def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
     for var in c.snow_param:
         snow_dict[var] = data[:, c.snow_param[var]]
 
+    # Make gridcell order match that of soil_dict
     target = soil_dict['gridcell'].argsort()
     indexes = target[np.searchsorted(soil_dict['gridcell'][target],
                                      snow_dict['cellnum'])]
@@ -1319,8 +1342,7 @@ def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
 # -------------------------------------------------------------------- #
 def veg_class(vegl_file, c=Cols(veglib_fcan=False)):
     """
-    Load the entire vegetation library file into a dictionary of numpy arrays.
-    Also reorders data to match gridcell order of soil file.
+    Load the entire vegetation library file into a dictionary of lists.
     """
 
     print('reading {0}'.format(vegl_file))
@@ -1371,8 +1393,8 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
     if not cells:
         cells = len(lines)
 
-    gridcel = np.zeros(cells)
-    nveg = np.zeros(cells)
+    gridcel = np.zeros(cells).astype(int)
+    nveg = np.zeros(cells).astype(int)
     cv = np.zeros((cells, veg_classes))
     root_depth = np.zeros((cells, veg_classes, max_roots))
     root_fract = np.zeros((cells, veg_classes, max_roots))
@@ -1395,7 +1417,6 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
     cell = 0
     while row < len(lines):
         line = lines[row].strip('\n').split(' ')
-#NOTE these still come out as floats
         gridcel[cell], nveg[cell] = np.array(line).astype(int)
         numrows = nveg[cell] * lfactor + row + 1
         row += 1
@@ -1416,6 +1437,7 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
                 sigma_slope[cell, vind] = temp[tmp]
                 lag_one[cell, vind] = temp[1+tmp]
                 fetch[cell, vind] = temp[2+tmp]
+                tmp += 2
 
             row += 1
 
@@ -1456,15 +1478,16 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
     if vegparam_albedo and alb_src == FROM_VEGPARAM:
         veg_dict['albedo'] = albedo[:cell, :, :]
 
-#    # Remove entries for inactive cells
-#    inds = []
-#    for sn in soil_dict['gridcell']:
-#        inds.append(np.nonzero(veg_dict['gridcell'] == sn))
-#
-#    for var in veg_dict:
-#        veg_dict[var] = np.squeeze(veg_dict[var][np.squeeze(inds)])
+    # Make gridcell order match that of soil_dict
+    inds = []
+    for sn in soil_dict['gridcell']:
+        inds.append(np.nonzero(veg_dict['gridcell'] == sn))
 
-    return veg_dict
+    new_veg_dict = OrderedDict()
+    for var in veg_dict:
+        new_veg_dict[var] = np.squeeze([veg_dict[var][i] for i in inds])
+
+    return new_veg_dict
 # -------------------------------------------------------------------- #
 
 
@@ -1484,9 +1507,9 @@ def lake(lake_file, soil_dict, max_numnod=10,
     if not cells:
         cells = len(lines)
 
-    gridcel = np.zeros(cells)
-    lake_idx = np.zeros(cells)
-    numnod = np.zeros(cells)
+    gridcel = np.zeros(cells).astype(int)
+    lake_idx = np.zeros(cells).astype(int)
+    numnod = np.zeros(cells).astype(int)
     mindepth = np.zeros(cells)
     wfrac = np.zeros(cells)
     depth_in = np.zeros(cells)
@@ -1502,7 +1525,6 @@ def lake(lake_file, soil_dict, max_numnod=10,
     cell = 0
     while row < len(lines):
         line = lines[row].strip('\n').split(' ')
-#NOTE these still come out as floats
         gridcel[cell], lake_idx[cell], numnod[cell] = np.array(line[0:3]).astype(int)
         temp = np.array(line).astype(float)
         mindepth[cell] = temp[3]
@@ -1545,13 +1567,14 @@ def lake(lake_file, soil_dict, max_numnod=10,
         lake_dict['basin_depth'] = basin_depth[:cell]
         lake_dict['basin_area'] = basin_area[:cell]
 
-#    # Remove entries for inactive cells
-#    inds = []
-#    for sn in soil_dict['gridcell']:
-#        inds.append(np.nonzero(lake_dict['gridcell'] == sn))
-#
-#    for var in lake_dict:
-#        lake_dict[var] = np.squeeze(lake_dict[var][np.squeeze(inds)])
+    # Make gridcell order match that of soil_dict
+    inds = []
+    for sn in soil_dict['gridcell']:
+        inds.append(np.nonzero(lake_dict['gridcell'] == sn))
 
-    return lake_dict
+    new_lake_dict = OrderedDict()
+    for var in lake_dict:
+        new_lake_dict[var] = np.squeeze([lake_dict[var][i] for i in inds])
+
+    return new_lake_dict
 # -------------------------------------------------------------------- #

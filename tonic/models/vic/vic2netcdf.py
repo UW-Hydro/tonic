@@ -59,7 +59,6 @@ default_config = {'OPTIONS': {'out_file_format': 'NETCDF3_64BIT',
                               'time_segment': 'month',
                               'snow_bands': False,
                               'veg_tiles': False,
-#NOTE: add lake_param veg_hist and blowsnow
                               'soil_layers': False},
                   'DOMAIN': {'longitude_var': 'longitude',
                              'latitude_var': 'latitude',
@@ -359,7 +358,6 @@ End Date: {5}
 
     def nc_dimensions(self, snow_bands=False, veg_tiles=False,
                       soil_layers=False):
-#NOTE: add lake_param veg_hist and blowsnow
         """ Define 4th dimensions """
         if snow_bands:
             self.f.createDimension('snow_bands', snow_bands)
@@ -713,7 +711,6 @@ def vic2nc(options, global_atts, domain_dict, fields):
         segment.nc_dimensions(snow_bands=options['snow_bands'],
                               veg_tiles=options['veg_tiles'],
                               soil_layers=options['soil_layers'])
-#NOTE: add lake_param veg_hist and blowsnow
 
         segment.nc_domain(domain)
         segment.nc_fields(fields,

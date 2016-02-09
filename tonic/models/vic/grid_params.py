@@ -236,7 +236,7 @@ class Format(object):
 
         # Veg Library
         self.veglib = {'Veg_class': '%1i',
-                       'lib_overstory': '%12.7g',
+                       'lib_overstory': '%1i',
                        'lib_rarc': '%12.7g',
                        'lib_rmin': '%12.7g',
                        'lib_LAI': '%12.7g',
@@ -382,8 +382,8 @@ class Desc(object):
                                     '(reference index for library table)',
                        'lib_overstory': 'Flag to indicate whether or not the '
                                         'current vegetation type has an '
-                                        'overstory (TRUE for overstory present'
-                                        ' [e.g. trees], FALSE for overstory '
+                                        'overstory (1 for overstory present'
+                                        ' [e.g. trees], 0 for overstory '
                                         'not present [e.g. grass])',
                        'lib_rarc': 'Architectural resistance of vegetation '
                                    'type (~2 s/m)',
@@ -1128,7 +1128,12 @@ def write_netcdf(myfile, target_attrs, target_grid,
             v[:] = data
 
         elif data.ndim == 2:
-            v = f.createVariable(var, NC_DOUBLE, dims2, fill_value=FILLVALUE_F)
+            if var in ['gridcell', 'run_cell', 'fs_active']:
+                v = f.createVariable(var, NC_INT, dims2,
+                                     fill_value=FILLVALUE_I)
+            else:
+                v = f.createVariable(var, NC_DOUBLE, dims2,
+                                     fill_value=FILLVALUE_F)
             v[:, :] = data
 
         elif data.ndim == 3:
@@ -1210,8 +1215,12 @@ def write_netcdf(myfile, target_attrs, target_grid,
             print('writing var: {0} {1}'.format(var, data.shape))
 
             if veg_grid[var].ndim == 2:
-                v = f.createVariable(var, NC_DOUBLE, dims2,
-                                     fill_value=FILLVALUE_F)
+                if var in ['Nveg', 'overstory']:
+                    v = f.createVariable(var, NC_INT, dims2,
+                                         fill_value=FILLVALUE_I)
+                else:
+                    v = f.createVariable(var, NC_DOUBLE, dims2,
+                                         fill_value=FILLVALUE_F)
                 v[:, :] = data
 
             elif veg_grid[var].ndim == 3:
@@ -1264,8 +1273,12 @@ def write_netcdf(myfile, target_attrs, target_grid,
             print('writing var: {0} {1}'.format(var, data.shape))
 
             if lake_grid[var].ndim == 2:
-                v = f.createVariable(var, NC_DOUBLE, dims2,
-                                     fill_value=FILLVALUE_F)
+                if var in ['lake_idx', 'numnod']:
+                    v = f.createVariable(var, NC_INT, dims2,
+                                         fill_value=FILLVALUE_I)
+                else:
+                    v = f.createVariable(var, NC_DOUBLE, dims2,
+                                         fill_value=FILLVALUE_F)
                 v[:, :] = data
 
             elif lake_grid[var].ndim == 3:

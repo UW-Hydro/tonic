@@ -58,7 +58,7 @@ bare_vegparam = {'overstory': 0,
                  'sigma_slope': 0.08,
                  'lag_one': 0.8,
                  'fetch': 1000.0,
-                 'Ctype': '',
+                 'Ctype': 0,
                  'MaxCarboxRate': 0,
                  'MaxE_or_CO2Spec': 0,
                  'CO2Specificity': 0,
@@ -175,8 +175,9 @@ class Cols(object):
             i += 1
 
         if veglib_photo:
-            varnames = ['Ctype', 'MaxCarboxRate', 'MaxE_or_CO2Spec',
-                        'LUE', 'NScale', 'Wnpp_inhib', 'NPP_factor_sat']
+            varnames = ['lib_Ctype', 'lib_MaxCarboxRate',
+                        'lib_MaxE_or_CO2Spec', 'lib_LUE',
+                        'lib_NScale', 'lib_Wnpp_inhib', 'lib_NPP_factor_sat']
             for var in varnames:
                 self.veglib[var] = np.array([i])
                 i += 1
@@ -261,7 +262,7 @@ class Format(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = '%12.7g'
         if veglib_photo:
-            self.veglib['lib_Ctype'] = '%s'
+            self.veglib['lib_Ctype'] = '%1i'
             self.veglib['lib_MaxCarboxRate'] = '%12.7g'
             self.veglib['lib_MaxE_or_CO2Spec'] = '%12.7g'
             self.veglib['lib_LUE'] = '%12.7g'
@@ -434,7 +435,7 @@ class Desc(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'Canopy cover fraction, one per month'
         if veglib_photo:
-            self.veglib['lib_Ctype'] = 'Photosynthetic pathway (C3 or C4)'
+            self.veglib['lib_Ctype'] = 'Photosynthetic pathway (3 = C3; 4 = C4)'
             self.veglib['lib_MaxCarboxRate'] = 'Maximum carboxylation rate at 25 C'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'Maximum electron transport rate at 25 C (C3) or CO2 specificity (C4)'
             self.veglib['lib_LUE'] = 'Light use efficiency'
@@ -563,7 +564,7 @@ class Units(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'fraction'
         if veglib_photo:
-            self.veglib['lib_Ctype'] = 'C3 or C4'
+            self.veglib['lib_Ctype'] = '3 or 4'
             self.veglib['lib_MaxCarboxRate'] = 'mol CO2/m2s'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'mol CO2/m2s'
             self.veglib['lib_LUE'] = 'mol CO2/mol photons'
@@ -628,6 +629,7 @@ def _run(args):
                         spatial_snow=args.spatial_snow,
                         july_tavg_supplied=args.july_tavg_supplied,
                         veglib_fcan=args.veglib_fcan,
+                        veglib_photo=args.veglib_photo,
                         blowing_snow=args.blowing_snow,
                         vegparam_lai=args.vegparam_lai,
                         vegparam_fcan=args.vegparam_fcan,
@@ -648,11 +650,11 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
               max_roots=3, max_numnod=10, cells=None,
               organic_fract=False, spatial_frost=False,
               spatial_snow=False, july_tavg_supplied=False,
-              veglib_fcan=False, blowing_snow=False,
-              vegparam_lai=False, vegparam_fcan=False,
-              vegparam_albedo=False, lai_src='FROM_VEGLIB',
-              fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB',
-              lake_profile=False):
+              veglib_fcan=False, veglib_photo=False,
+              blowing_snow=False, vegparam_lai=False,
+              vegparam_fcan=False, vegparam_albedo=False,
+              lai_src='FROM_VEGLIB', fcan_src='FROM_DEFAULT',
+              alb_src='FROM_VEGLIB', lake_profile=False):
     """
     Make grid uses routines from params.py to read standard vic format
     parameter files.  After the parameter files are read, the files are placed
@@ -680,7 +682,8 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
 
     if vegl_file:
         veglib_dict, lib_bare_idx = veg_class(vegl_file,
-                                    c=Cols(veglib_fcan=veglib_fcan))
+                                    c=Cols(veglib_fcan=veglib_fcan,
+                                           veglib_photo=veglib_photo))
         veg_classes = len(veglib_dict['Veg_class'])
     else:
         veglib_dict = False
@@ -710,7 +713,8 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
 
     grid_dict = grid_params(soil_dict, target_grid, snow_dict,
                             veglib_dict, veg_dict, lake_dict,
-                            version_in, veglib_fcan, lib_bare_idx,
+                            version_in, veglib_fcan,
+                            veglib_photo, lib_bare_idx,
                             blowing_snow, vegparam_lai,
                             vegparam_fcan, vegparam_albedo,
                             lai_src, fcan_src, alb_src)
@@ -721,7 +725,7 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
                      grid_dict['veg_dict'], grid_dict['lake_dict'],
                      version_in, organic_fract, spatial_frost,
                      spatial_snow, july_tavg_supplied,
-                     veglib_fcan, blowing_snow,
+                     veglib_fcan, veglib_photo, blowing_snow,
                      vegparam_lai, vegparam_fcan, vegparam_albedo,
                      lai_src, fcan_src, alb_src)
         return nc_file
@@ -835,7 +839,7 @@ def latlon2yx(plats, plons, glats, glons):
 # -------------------------------------------------------------------- #
 def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
                 lake_dict, version_in='4.2', veglib_fcan=False,
-                lib_bare_idx=None, blowing_snow=False,
+                veglib_photo=False, lib_bare_idx=None, blowing_snow=False,
                 vegparam_lai=False, vegparam_fcan=False,
                 vegparam_albedo=False, lai_src='FROM_VEGLIB',
                 fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB'):
@@ -987,17 +991,31 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
         # Distribute the veglib variables
         # 1st - the 1d vars
         #   double lib_overstory(veg_class) ;  --> (veg_class, nj, ni)
-        for var in ['overstory', 'rarc', 'rmin', 'wind_h', 'RGL', 'rad_atten',
-                    'rad_atten', 'wind_atten', 'trunk_ratio']:
+        varnames = ['overstory', 'rarc', 'rmin', 'wind_h', 'RGL', 'rad_atten',
+                    'rad_atten', 'wind_atten', 'trunk_ratio']
+        if veglib_photo:
+            varnames.append('Ctype')
+            varnames.append('MaxCarboxRate')
+            varnames.append('MaxE_or_CO2Spec')
+            varnames.append('LUE')
+            varnames.append('NScale')
+            varnames.append('Wnpp_inhib')
+            varnames.append('NPP_factor_sat')
+        for var in varnames:
             lib_var = 'lib_{0}'.format(var)
-            new = np.full((nveg_classes, ysize, xsize), FILLVALUE_F)
+            if var == 'Ctype':
+                fill_val = ''
+                new = np.empty((nveg_classes, ysize, xsize), 'O')
+            else:
+                fill_val = FILLVALUE_F
+                new = np.full((nveg_classes, ysize, xsize), fill_val)
             if extra_class:
                 new[:-1, yi, xi] = veglib_dict[lib_var][:, np.newaxis]
                 new[-1, yi, xi] = bare_vegparam[var]
             else:
                 new[:, yi, xi] = veglib_dict[lib_var][:, np.newaxis]
             new[:, ymask, xmask] = fill_val
-            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+            out_dicts['veg_dict'][var] = np.ma.masked_values(new, fill_val)
 
         # 2nd - the 2d vars
         varnames = ['veg_rough', 'displacement']
@@ -1044,7 +1062,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                  lake_grid=None, version_in='4.2',
                  organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False,
+                 veglib_fcan=False, veglib_photo=False, blowing_snow=False,
                  vegparam_lai=False, vegparam_fcan=False,
                  vegparam_albedo=False, lai_src='FROM_VEGLIB',
                  fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB'):
@@ -1072,13 +1090,15 @@ def write_netcdf(myfile, target_attrs, target_grid,
     unit = Units(organic_fract=organic_fract, spatial_frost=spatial_frost,
                  spatial_snow=spatial_snow,
                  july_tavg_supplied=july_tavg_supplied,
-                 veglib_fcan=veglib_fcan, blowing_snow=blowing_snow,
+                 veglib_fcan=veglib_fcan, veglib_photo=veglib_photo,
+                 blowing_snow=blowing_snow,
                  vegparam_lai=vegparam_lai, vegparam_fcan=vegparam_fcan,
                  vegparam_albedo=vegparam_albedo, lakes=lakes)
     desc = Desc(organic_fract=organic_fract, spatial_frost=spatial_frost,
                 spatial_snow=spatial_snow,
                 july_tavg_supplied=july_tavg_supplied,
-                veglib_fcan=veglib_fcan, blowing_snow=blowing_snow,
+                veglib_fcan=veglib_fcan, veglib_photo=veglib_photo,
+                blowing_snow=blowing_snow,
                 vegparam_lai=vegparam_lai, vegparam_fcan=vegparam_fcan,
                 vegparam_albedo=vegparam_albedo, lakes=lakes)
 
@@ -1243,7 +1263,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                 print('writing var: {0} {1}'.format(var, data.shape))
 
                 if veg_grid[var].ndim == 2:
-                    if var in ['Nveg', 'overstory']:
+                    if var in ['Nveg', 'overstory', 'NScale']:
                         v = f.createVariable(var, NC_INT, dims2,
                                              fill_value=FILLVALUE_I)
                     else:

@@ -57,7 +57,15 @@ bare_vegparam = {'overstory': 0,
                  'root_fract': 0,
                  'sigma_slope': 0.08,
                  'lag_one': 0.8,
-                 'fetch': 1000.0}
+                 'fetch': 1000.0,
+                 'Ctype': '',
+                 'MaxCarboxRate': 0,
+                 'MaxE_or_CO2Spec': 0,
+                 'CO2Specificity': 0,
+                 'LUE': 0,
+                 'NScale': 0,
+                 'Wnpp_inhib': 0,
+                 'NPP_factor_sat': 0}
 
 # fill values
 FILLVALUE_F = default_fillvals[NC_DOUBLE]
@@ -73,7 +81,8 @@ YVAR = 'yc'
 class Cols(object):
     def __init__(self, nlayers=3, snow_bands=5, organic_fract=False,
                  spatial_frost=False, spatial_snow=False,
-                 july_tavg_supplied=False, veglib_fcan=False):
+                 july_tavg_supplied=False, veglib_fcan=False,
+                 veglib_photo=False):
 
         # Soil Parameters
         self.soil_param = OrderedDict([('run_cell', np.array([0])),
@@ -165,6 +174,13 @@ class Cols(object):
             self.veglib[var] = np.array([i])
             i += 1
 
+        if veglib_photo:
+            varnames = ['Ctype', 'MaxCarboxRate', 'MaxE_or_CO2Spec',
+                        'LUE', 'NScale', 'Wnpp_inhib', 'NPP_factor_sat']
+            for var in varnames:
+                self.veglib[var] = np.array([i])
+                i += 1
+
         self.veglib['lib_comment'] = np.array([i])
 
 
@@ -176,9 +192,9 @@ class Format(object):
     def __init__(self, nlayers=3, snow_bands=5, organic_fract=False,
                  spatial_frost=False, spatial_snow=False,
                  july_tavg_supplied=False, veglib_fcan=False,
-                 blowing_snow=False, vegparam_lai=False,
-                 vegparam_fcan=False, vegparam_albedo=False,
-                 lakes=False):
+                 veglib_photo=False, blowing_snow=False,
+                 vegparam_lai=False, vegparam_fcan=False,
+                 vegparam_albedo=False, lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': '%1i',
@@ -244,6 +260,14 @@ class Format(object):
                        'lib_comment': '%s'}
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = '%12.7g'
+        if veglib_photo:
+            self.veglib['lib_Ctype'] = '%s'
+            self.veglib['lib_MaxCarboxRate'] = '%12.7g'
+            self.veglib['lib_MaxE_or_CO2Spec'] = '%12.7g'
+            self.veglib['lib_LUE'] = '%12.7g'
+            self.veglib['lib_NScale'] = '%1i'
+            self.veglib['lib_Wnpp_inhib'] = '%12.7g'
+            self.veglib['lib_NPP_factor_sat'] = '%12.7g'
 
         # Veg Params
         self.veg_param = {'gridcell': '%1i',
@@ -282,9 +306,10 @@ class Format(object):
 class Desc(object):
     def __init__(self, organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False,
-                 vegparam_lai=False, vegparam_fcan=False,
-                 vegparam_albedo=False, lakes=False):
+                 veglib_fcan=False, veglib_photo=False,
+                 blowing_snow=False, vegparam_lai=False,
+                 vegparam_fcan=False, vegparam_albedo=False,
+                 lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': '1 = Run Grid Cell, 0 = Do Not Run',
@@ -408,6 +433,14 @@ class Desc(object):
                                       'valid entrys.'}
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'Canopy cover fraction, one per month'
+        if veglib_photo:
+            self.veglib['lib_Ctype'] = 'Photosynthetic pathway (C3 or C4)'
+            self.veglib['lib_MaxCarboxRate'] = 'Maximum carboxylation rate at 25 C'
+            self.veglib['lib_MaxE_or_CO2Spec'] = 'Maximum electron transport rate at 25 C (C3) or CO2 specificity (C4)'
+            self.veglib['lib_LUE'] = 'Light use efficiency'
+            self.veglib['lib_NScale'] = '1 = this class employs nitrogen scaling factors; 0 = no nitrogen scaling factors'
+            self.veglib['lib_Wnpp_inhib'] = 'Fraction of maximum moisture storage in top soil layer above which photosynthesis begins to be inhibited by wet conditions'
+            self.veglib['lib_NPP_factor_sat'] = 'NPP inhibition factor under saturated conditions (when moisture = 100% of maximum)'
 
         # Veg Params
         self.veg_param = {'gridcell': 'Grid cell number',
@@ -460,9 +493,10 @@ class Desc(object):
 class Units(object):
     def __init__(self, organic_fract=False, spatial_frost=False,
                  spatial_snow=False, july_tavg_supplied=False,
-                 veglib_fcan=False, blowing_snow=False,
-                 vegparam_lai=False, vegparam_fcan=False,
-                 vegparam_albedo=False, lakes=False):
+                 veglib_fcan=False, veglib_photo=False,
+                 blowing_snow=False, vegparam_lai=False,
+                 vegparam_fcan=False, vegparam_albedo=False,
+                 lakes=False):
 
         # Soil Params
         self.soil_param = {'run_cell': 'N/A',
@@ -528,6 +562,14 @@ class Units(object):
                        'lib_comment': 'N/A'}
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'fraction'
+        if veglib_photo:
+            self.veglib['lib_Ctype'] = 'C3 or C4'
+            self.veglib['lib_MaxCarboxRate'] = 'mol CO2/m2s'
+            self.veglib['lib_MaxE_or_CO2Spec'] = 'mol CO2/m2s'
+            self.veglib['lib_LUE'] = 'mol CO2/mol photons'
+            self.veglib['lib_NScale'] = '0 or 1'
+            self.veglib['lib_Wnpp_inhib'] = 'fraction'
+            self.veglib['lib_NPP_factor_sat'] = 'fraction'
 
         # Veg Params
         self.veg_param = {'gridcell': 'N/A',
@@ -1337,7 +1379,7 @@ def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
 
 
 # -------------------------------------------------------------------- #
-def veg_class(vegl_file, c=Cols(veglib_fcan=False)):
+def veg_class(vegl_file, c=Cols(veglib_fcan=False, veglib_photo=False)):
     """
     Load the entire vegetation library file into a dictionary of lists.
     """

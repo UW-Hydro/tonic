@@ -435,7 +435,7 @@ class Desc(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'Canopy cover fraction, one per month'
         if veglib_photo:
-            self.veglib['lib_Ctype'] = 'Photosynthetic pathway (3 = C3; 4 = C4)'
+            self.veglib['lib_Ctype'] = 'Photosynthetic pathway (0 = C3; 1 = C4)'
             self.veglib['lib_MaxCarboxRate'] = 'Maximum carboxylation rate at 25 C'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'Maximum electron transport rate at 25 C (C3) or CO2 specificity (C4)'
             self.veglib['lib_LUE'] = 'Light use efficiency'
@@ -564,7 +564,7 @@ class Units(object):
         if veglib_fcan:
             self.veglib['lib_fcanopy'] = 'fraction'
         if veglib_photo:
-            self.veglib['lib_Ctype'] = '3 or 4'
+            self.veglib['lib_Ctype'] = '0 or 1'
             self.veglib['lib_MaxCarboxRate'] = 'mol CO2/m2s'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'mol CO2/m2s'
             self.veglib['lib_LUE'] = 'mol CO2/mol photons'
@@ -1003,9 +1003,10 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
             varnames.append('NPP_factor_sat')
         for var in varnames:
             lib_var = 'lib_{0}'.format(var)
-            if var == 'Ctype':
-                fill_val = ''
-                new = np.empty((nveg_classes, ysize, xsize), 'O')
+            if var in ['Ctype', 'NScale']:
+                fill_val = FILLVALUE_I
+                new = np.full((nveg_classes, ysize, xsize), fill_val,
+                              dtype=np.int)
             else:
                 fill_val = FILLVALUE_F
                 new = np.full((nveg_classes, ysize, xsize), fill_val)
@@ -1263,7 +1264,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
                 print('writing var: {0} {1}'.format(var, data.shape))
 
                 if veg_grid[var].ndim == 2:
-                    if var in ['Nveg', 'overstory', 'NScale']:
+                    if var  == 'Nveg':
                         v = f.createVariable(var, NC_INT, dims2,
                                              fill_value=FILLVALUE_I)
                     else:
@@ -1273,8 +1274,12 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
                 elif veg_grid[var].ndim == 3:
                     mycoords = ('veg_class', ) + dims2
-                    v = f.createVariable(var, NC_DOUBLE, mycoords,
-                                         fill_value=FILLVALUE_F)
+                    if var in ['overstory', 'Ctype', 'NScale']:
+                        v = f.createVariable(var, NC_INT, mycoords,
+                                             fill_value=FILLVALUE_I)
+                    else:
+                        v = f.createVariable(var, NC_DOUBLE, mycoords,
+                                             fill_value=FILLVALUE_F)
                     v[:, :, :] = data
 
                 elif var in ['LAI', 'fcanopy', 'albedo', 'veg_rough',

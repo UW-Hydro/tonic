@@ -65,7 +65,7 @@ bare_vegparam = {'overstory': 0,
                  'LUE': 0,
                  'Nscale': 0,
                  'Wnpp_inhib': 0,
-                 'NPP_factor_sat': 0}
+                 'NPPfactor_sat': 0}
 
 # fill values
 FILLVALUE_F = default_fillvals[NC_DOUBLE]
@@ -177,7 +177,7 @@ class Cols(object):
         if veglib_photo:
             varnames = ['lib_Ctype', 'lib_MaxCarboxRate',
                         'lib_MaxE_or_CO2Spec', 'lib_LUE',
-                        'lib_Nscale', 'lib_Wnpp_inhib', 'lib_NPP_factor_sat']
+                        'lib_Nscale', 'lib_Wnpp_inhib', 'lib_NPPfactor_sat']
             for var in varnames:
                 self.veglib[var] = np.array([i])
                 i += 1
@@ -268,7 +268,7 @@ class Format(object):
             self.veglib['lib_LUE'] = '%12.7g'
             self.veglib['lib_Nscale'] = '%1i'
             self.veglib['lib_Wnpp_inhib'] = '%12.7g'
-            self.veglib['lib_NPP_factor_sat'] = '%12.7g'
+            self.veglib['lib_NPPfactor_sat'] = '%12.7g'
 
         # Veg Params
         self.veg_param = {'gridcell': '%1i',
@@ -441,7 +441,7 @@ class Desc(object):
             self.veglib['lib_LUE'] = 'Light use efficiency'
             self.veglib['lib_Nscale'] = '1 = this class employs nitrogen scaling factors; 0 = no nitrogen scaling factors'
             self.veglib['lib_Wnpp_inhib'] = 'Fraction of maximum moisture storage in top soil layer above which photosynthesis begins to be inhibited by wet conditions'
-            self.veglib['lib_NPP_factor_sat'] = 'NPP inhibition factor under saturated conditions (when moisture = 100% of maximum)'
+            self.veglib['lib_NPPfactor_sat'] = 'NPP inhibition factor under saturated conditions (when moisture = 100% of maximum)'
 
         # Veg Params
         self.veg_param = {'gridcell': 'Grid cell number',
@@ -570,7 +570,7 @@ class Units(object):
             self.veglib['lib_LUE'] = 'mol CO2/mol photons'
             self.veglib['lib_Nscale'] = '0 or 1'
             self.veglib['lib_Wnpp_inhib'] = 'fraction'
-            self.veglib['lib_NPP_factor_sat'] = 'fraction'
+            self.veglib['lib_NPPfactor_sat'] = 'fraction'
 
         # Veg Params
         self.veg_param = {'gridcell': 'N/A',
@@ -1000,7 +1000,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
             varnames.append('LUE')
             varnames.append('Nscale')
             varnames.append('Wnpp_inhib')
-            varnames.append('NPP_factor_sat')
+            varnames.append('NPPfactor_sat')
         for var in varnames:
             lib_var = 'lib_{0}'.format(var)
             if var in ['Ctype', 'Nscale']:

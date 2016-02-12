@@ -63,7 +63,7 @@ bare_vegparam = {'overstory': 0,
                  'MaxE_or_CO2Spec': 0,
                  'CO2Specificity': 0,
                  'LUE': 0,
-                 'NScale': 0,
+                 'Nscale': 0,
                  'Wnpp_inhib': 0,
                  'NPP_factor_sat': 0}
 
@@ -177,7 +177,7 @@ class Cols(object):
         if veglib_photo:
             varnames = ['lib_Ctype', 'lib_MaxCarboxRate',
                         'lib_MaxE_or_CO2Spec', 'lib_LUE',
-                        'lib_NScale', 'lib_Wnpp_inhib', 'lib_NPP_factor_sat']
+                        'lib_Nscale', 'lib_Wnpp_inhib', 'lib_NPP_factor_sat']
             for var in varnames:
                 self.veglib[var] = np.array([i])
                 i += 1
@@ -266,7 +266,7 @@ class Format(object):
             self.veglib['lib_MaxCarboxRate'] = '%12.7g'
             self.veglib['lib_MaxE_or_CO2Spec'] = '%12.7g'
             self.veglib['lib_LUE'] = '%12.7g'
-            self.veglib['lib_NScale'] = '%1i'
+            self.veglib['lib_Nscale'] = '%1i'
             self.veglib['lib_Wnpp_inhib'] = '%12.7g'
             self.veglib['lib_NPP_factor_sat'] = '%12.7g'
 
@@ -439,7 +439,7 @@ class Desc(object):
             self.veglib['lib_MaxCarboxRate'] = 'Maximum carboxylation rate at 25 C'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'Maximum electron transport rate at 25 C (C3) or CO2 specificity (C4)'
             self.veglib['lib_LUE'] = 'Light use efficiency'
-            self.veglib['lib_NScale'] = '1 = this class employs nitrogen scaling factors; 0 = no nitrogen scaling factors'
+            self.veglib['lib_Nscale'] = '1 = this class employs nitrogen scaling factors; 0 = no nitrogen scaling factors'
             self.veglib['lib_Wnpp_inhib'] = 'Fraction of maximum moisture storage in top soil layer above which photosynthesis begins to be inhibited by wet conditions'
             self.veglib['lib_NPP_factor_sat'] = 'NPP inhibition factor under saturated conditions (when moisture = 100% of maximum)'
 
@@ -568,7 +568,7 @@ class Units(object):
             self.veglib['lib_MaxCarboxRate'] = 'mol CO2/m2s'
             self.veglib['lib_MaxE_or_CO2Spec'] = 'mol CO2/m2s'
             self.veglib['lib_LUE'] = 'mol CO2/mol photons'
-            self.veglib['lib_NScale'] = '0 or 1'
+            self.veglib['lib_Nscale'] = '0 or 1'
             self.veglib['lib_Wnpp_inhib'] = 'fraction'
             self.veglib['lib_NPP_factor_sat'] = 'fraction'
 
@@ -998,12 +998,12 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
             varnames.append('MaxCarboxRate')
             varnames.append('MaxE_or_CO2Spec')
             varnames.append('LUE')
-            varnames.append('NScale')
+            varnames.append('Nscale')
             varnames.append('Wnpp_inhib')
             varnames.append('NPP_factor_sat')
         for var in varnames:
             lib_var = 'lib_{0}'.format(var)
-            if var in ['Ctype', 'NScale']:
+            if var in ['Ctype', 'Nscale']:
                 fill_val = FILLVALUE_I
                 new = np.full((nveg_classes, ysize, xsize), fill_val,
                               dtype=np.int)
@@ -1274,7 +1274,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
                 elif veg_grid[var].ndim == 3:
                     mycoords = ('veg_class', ) + dims2
-                    if var in ['overstory', 'Ctype', 'NScale']:
+                    if var in ['overstory', 'Ctype', 'Nscale']:
                         v = f.createVariable(var, NC_INT, mycoords,
                                              fill_value=FILLVALUE_I)
                     else:

@@ -1449,7 +1449,6 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
             if vegparam_albedo:
                 lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
-                print(line)
                 albedo[cell, vind, :] = np.array(line, dtype=np.float)
                 row += 1
         cell += 1

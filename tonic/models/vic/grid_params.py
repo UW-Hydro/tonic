@@ -682,6 +682,7 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
 
     if vegl_file:
         veglib_dict, lib_bare_idx = veg_class(vegl_file,
+                                              veglib_photo=veglib_photo,
                                     c=Cols(veglib_fcan=veglib_fcan,
                                            veglib_photo=veglib_photo))
         veg_classes = len(veglib_dict['Veg_class'])
@@ -1404,7 +1405,8 @@ def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
 
 
 # -------------------------------------------------------------------- #
-def veg_class(vegl_file, c=Cols(veglib_fcan=False, veglib_photo=False)):
+def veg_class(vegl_file, veglib_photo=False,
+              c=Cols(veglib_fcan=False, veglib_photo=False)):
     """
     Load the entire vegetation library file into a dictionary of lists.
     """
@@ -1424,6 +1426,11 @@ def veg_class(vegl_file, c=Cols(veglib_fcan=False, veglib_photo=False)):
                 for col in np.arange(0, col_desc):
                     data[row - 1][:] = words[:col_desc]
                     data[row - 1].append(sep.join(words[col_desc:]))
+                if veglib_photo:
+                    if data[row - 1][c.veglib['lib_Ctype']] == 'C3':
+                        data[row - 1][c.veglib['lib_Ctype']] = 0
+                    elif data[row - 1][c.veglib['lib_Ctype']] == 'C4':
+                        data[row - 1][c.veglib['lib_Ctype']] = 1
                 if re.match('(bare|barren|unvegetated)',
                             sep.join(words[col_desc:]), re.I):
                     lib_bare_idx = row - 1

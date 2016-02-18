@@ -35,10 +35,8 @@ NC_INT = 'i4'
 NC_CHAR = 'S1'
 MAX_NC_CHARS = 256
 
-# option values
-FROM_DEFAULT = 0
-FROM_VEGLIB = 1
-FROM_VEGPARAM = 2
+# Months per year
+MONTHS_PER_YEAR = 12
 
 # Default values of veg params over bare soil
 bare_vegparam = {'overstory': 0,
@@ -88,9 +86,8 @@ class Cols(object):
                                        ('Ws', np.array([7])),
                                        ('c', np.array([8]))])
 
-        varnames = ['expt', 'Ksat', 'phi_s', 'init_moist']
         i = 9
-        for var in varnames:
+        for var in ['expt', 'Ksat', 'phi_s', 'init_moist']:
             self.soil_param[var] = np.arange(i, i + nlayers)
             i += nlayers
 
@@ -113,13 +110,11 @@ class Cols(object):
         self.soil_param['off_gmt'] = np.array([i])
         i += 1
 
-        varnames = ['Wcr_FRACT', 'Wpwp_FRACT']
-        for var in varnames:
+        for var in ['Wcr_FRACT', 'Wpwp_FRACT']:
             self.soil_param[var] = np.arange(i, i + nlayers)
             i += nlayers
 
-        varnames = ['rough', 'snow_rough', 'annual_prec']
-        for var in varnames:
+        for var in ['rough', 'snow_rough', 'annual_prec']:
             self.soil_param[var] = np.array([i])
             i += 1
 
@@ -144,9 +139,8 @@ class Cols(object):
 
         # Snow Parameters
         self.snow_param = OrderedDict([('cellnum', np.array([0]))])
-        varnames = ['AreaFract', 'elevation', 'Pfactor']
         i = 1
-        for var in varnames:
+        for var in ['AreaFract', 'elevation', 'Pfactor']:
             self.snow_param[var] = np.arange(i, i + snow_bands)
             i += snow_bands
 
@@ -163,12 +157,11 @@ class Cols(object):
             varnames = ['lib_fcanopy'] + varnames
         i = 16
         for var in varnames:
-            self.veglib[var] = np.arange(i, i + 12)
-            i += 12
+            self.veglib[var] = np.arange(i, i + MONTHS_PER_YEAR)
+            i += MONTHS_PER_YEAR
 
-        varnames = ['lib_wind_h', 'lib_RGL', 'lib_rad_atten',
-                    'lib_wind_atten', 'lib_trunk_ratio']
-        for var in varnames:
+        for var in ['lib_wind_h', 'lib_RGL', 'lib_rad_atten',
+                    'lib_wind_atten', 'lib_trunk_ratio']:
             self.veglib[var] = np.array([i])
             i += 1
 
@@ -610,13 +603,13 @@ def _run(args):
 def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
               lake_file, nc_file='params.nc', version_in='4.2',
               grid_decimal=4, nlayers=3, snow_bands=5, veg_classes=11,
-              max_roots=3, max_numnod=10, cells=False,
+              max_roots=3, max_numnod=10, cells=None,
               organic_fract=False, spatial_frost=False,
               spatial_snow=False, july_tavg_supplied=False,
               veglib_fcan=False, blowing_snow=False,
               vegparam_lai=False, vegparam_fcan=False,
-              vegparam_albedo=False, lai_src=FROM_VEGLIB,
-              fcan_src=FROM_DEFAULT, alb_src=FROM_VEGLIB,
+              vegparam_albedo=False, lai_src='FROM_VEGLIB',
+              fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB',
               lake_profile=False):
     """
     Make grid uses routines from params.py to read standard vic format
@@ -635,7 +628,7 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
                      spatial_snow=spatial_snow,
                      july_tavg_supplied=july_tavg_supplied))
 
-    if not cells:
+    if cells is None:
         cells = len(soil_dict['gridcell'])
 
     if snow_file:
@@ -649,7 +642,7 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
         veg_classes = len(veglib_dict['Veg_class'])
     else:
         veglib_dict = False
-        lib_bare_idx = -1
+        lib_bare_idx = None
 
     if veg_file:
         veg_dict = veg(veg_file, soil_dict, veg_classes,
@@ -800,10 +793,10 @@ def latlon2yx(plats, plons, glats, glons):
 # -------------------------------------------------------------------- #
 def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
                 lake_dict, version_in='4.2', veglib_fcan=False,
-                lib_bare_idx=-1, blowing_snow=False,
+                lib_bare_idx=None, blowing_snow=False,
                 vegparam_lai=False, vegparam_fcan=False,
-                vegparam_albedo=False, lai_src=FROM_VEGLIB,
-                fcan_src=FROM_DEFAULT, alb_src=FROM_VEGLIB):
+                vegparam_albedo=False, lai_src='FROM_VEGLIB',
+                fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB'):
     """
     Reads the coordinate information from the soil_dict and target_grid and
     maps all input dictionaries to the target grid.  Returns a grid_dict with
@@ -845,7 +838,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
             if mydict[var].dtype in [np.int, np.int64, np.int32]:
                 fill_val = FILLVALUE_I
                 dtype = np.int
-            elif mydict[var].dtype in [np.str]:
+            elif isinstance(mydict[var].dtype, np.str):
                 fill_val = ''
                 dtype = np.str
             else:
@@ -892,7 +885,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
         # Determine the final number of veg classes, accounting for
         # potential new bare soil class, and determine that class's idx
         var = 'Cv'
-        if lib_bare_idx >= 0:
+        if lib_bare_idx is not None:
             # Bare soil class already exists at lib_bare_idx
             extra_class = 0
         else:
@@ -922,15 +915,15 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
         #   double fcan(veg_class, month, nj, ni) ;
         #   double albedo(veg_class, month, nj, ni) ;
         varnames = ['root_depth', 'root_fract']
-        if vegparam_lai and lai_src == FROM_VEGPARAM:
+        if vegparam_lai and lai_src == 'FROM_VEGPARAM':
             varnames.append('LAI')
-        if vegparam_fcan and fcan_src == FROM_VEGPARAM:
+        if vegparam_fcan and fcan_src == 'FROM_VEGPARAM':
             varnames.append('fcanopy')
-        if vegparam_albedo and alb_src == FROM_VEGPARAM:
+        if vegparam_albedo and alb_src == 'FROM_VEGPARAM':
             varnames.append('albedo')
         for var in varnames:
             shape = (nveg_classes, ) + out_dicts['veg_dict'][var].shape[1:]
-            new = np.zeros(shape) + FILLVALUE_F
+            new = np.full(shape, FILLVALUE_F)
             if extra_class:
                 new[:-1, :, :] = out_dicts['veg_dict'][var]
                 new[-1, :, :] = bare_vegparam[var]
@@ -938,29 +931,24 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
                 new[:, :, :] = out_dicts['veg_dict'][var]
             out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
 
-        varnames = []
         if blowing_snow:
-            varnames.append('sigma_slope')
-            varnames.append('lag_one')
-            varnames.append('fetch')
-        for var in varnames:
-            shape = (nveg_classes, ) + out_dicts['veg_dict'][var].shape[1:]
-            new = np.zeros(shape) + FILLVALUE_F
-            if extra_class:
-                new[:-1, :, :] = out_dicts['veg_dict'][var]
-                new[-1, :, :] = bare_vegparam[var]
-            else:
-                new[:, :, :] = out_dicts['veg_dict'][var]
-            out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
+            for var in ['sigma_slope', 'lag_one', 'fetch']:
+                shape = (nveg_classes, ) + out_dicts['veg_dict'][var].shape[1:]
+                new = np.full(shape, FILLVALUE_F)
+                if extra_class:
+                    new[:-1, :, :] = out_dicts['veg_dict'][var]
+                    new[-1, :, :] = bare_vegparam[var]
+                else:
+                    new[:, :, :] = out_dicts['veg_dict'][var]
+                out_dicts['veg_dict'][var] = np.ma.masked_values(new, FILLVALUE_F)
 
         # Distribute the veglib variables
         # 1st - the 1d vars
         #   double lib_overstory(veg_class) ;  --> (veg_class, nj, ni)
-        varnames = ['overstory', 'rarc', 'rmin', 'wind_h', 'RGL', 'rad_atten',
-                    'rad_atten', 'wind_atten', 'trunk_ratio']
-        for var in varnames:
+        for var in ['overstory', 'rarc', 'rmin', 'wind_h', 'RGL', 'rad_atten',
+                    'rad_atten', 'wind_atten', 'trunk_ratio']:
             lib_var = 'lib_{0}'.format(var)
-            new = np.zeros((nveg_classes, ysize, xsize)) + FILLVALUE_F
+            new = np.full((nveg_classes, ysize, xsize), FILLVALUE_F)
             if extra_class:
                 new[:-1, yi, xi] = veglib_dict[lib_var][:, np.newaxis]
                 new[-1, yi, xi] = bare_vegparam[var]
@@ -971,17 +959,17 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
 
         # 2nd - the 2d vars
         varnames = ['veg_rough', 'displacement']
-        if alb_src == FROM_VEGLIB:
+        if alb_src == 'FROM_VEGLIB':
             varnames = ['albedo'] + varnames
-        if veglib_fcan and fcan_src == FROM_VEGLIB:
+        if veglib_fcan and fcan_src == 'FROM_VEGLIB':
             varnames = ['fcanopy'] + varnames
-        if lai_src == FROM_VEGLIB:
+        if lai_src == 'FROM_VEGLIB':
             varnames = ['LAI'] + varnames
         for var in varnames:
             lib_var = 'lib_{0}'.format(var)
             shape = (nveg_classes, veglib_dict[lib_var].shape[1],
                      ysize, xsize)
-            new = np.zeros(shape) + FILLVALUE_F
+            new = np.full(shape, FILLVALUE_F)
             if extra_class:
                 new[:-1, :, yi, xi] = veglib_dict[lib_var][:, :, np.newaxis]
                 new[-1, :, yi, xi] = bare_vegparam[var]
@@ -995,7 +983,7 @@ def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
         # This deviates from dimensions of other grid vars
         var = 'comment'
         lib_var = 'lib_{0}'.format(var)
-        new = np.empty(nveg_classes,'O')
+        new = np.empty(nveg_classes, 'O')
         if extra_class:
             new[:-1] = veglib_dict['lib_comment']
             new[-1] = 'Bare Soil'
@@ -1016,8 +1004,8 @@ def write_netcdf(myfile, target_attrs, target_grid,
                  spatial_snow=False, july_tavg_supplied=False,
                  veglib_fcan=False, blowing_snow=False,
                  vegparam_lai=False, vegparam_fcan=False,
-                 vegparam_albedo=False, lai_src=FROM_VEGLIB,
-                 fcan_src=FROM_DEFAULT, alb_src=FROM_VEGLIB):
+                 vegparam_albedo=False, lai_src='FROM_VEGLIB',
+                 fcan_src='FROM_DEFAULT', alb_src='FROM_VEGLIB'):
     """
     Write the gridded parameters to a netcdf4 file
     Will only write paramters that it is given
@@ -1190,7 +1178,7 @@ def write_netcdf(myfile, target_attrs, target_grid,
 
         f.createDimension('veg_class', veg_grid['Cv'].shape[0])
         f.createDimension('root_zone', veg_grid['root_depth'].shape[1])
-        f.createDimension('month', 12)
+        f.createDimension('month', MONTHS_PER_YEAR)
 
         v = f.createVariable('veg_class', NC_INT, ('veg_class', ))
         v[:] = np.arange(1, veg_grid['Cv'].shape[0] + 1)
@@ -1209,59 +1197,55 @@ def write_netcdf(myfile, target_attrs, target_grid,
         v.long_name = 'month of year'
 
         for var, data in veg_grid.items():
-            if var in ['comment']:
-                break
+            if var != 'comment':
+                print('writing var: {0} {1}'.format(var, data.shape))
 
-            print('writing var: {0} {1}'.format(var, data.shape))
+                if veg_grid[var].ndim == 2:
+                    if var in ['Nveg', 'overstory']:
+                        v = f.createVariable(var, NC_INT, dims2,
+                                             fill_value=FILLVALUE_I)
+                    else:
+                        v = f.createVariable(var, NC_DOUBLE, dims2,
+                                             fill_value=FILLVALUE_F)
+                    v[:, :] = data
 
-            if veg_grid[var].ndim == 2:
-                if var in ['Nveg', 'overstory']:
-                    v = f.createVariable(var, NC_INT, dims2,
-                                         fill_value=FILLVALUE_I)
-                else:
-                    v = f.createVariable(var, NC_DOUBLE, dims2,
+                elif veg_grid[var].ndim == 3:
+                    mycoords = ('veg_class', ) + dims2
+                    v = f.createVariable(var, NC_DOUBLE, mycoords,
                                          fill_value=FILLVALUE_F)
-                v[:, :] = data
+                    v[:, :, :] = data
 
-            elif veg_grid[var].ndim == 3:
-                mycoords = ('veg_class', ) + dims2
-                v = f.createVariable(var, NC_DOUBLE, mycoords,
-                                     fill_value=FILLVALUE_F)
-                v[:, :, :] = data
+                elif var in ['LAI', 'fcanopy', 'albedo', 'veg_rough',
+                             'displacement']:
+                    mycoords = ('veg_class', 'month') + dims2
+                    v = f.createVariable(var, NC_DOUBLE, mycoords,
+                                         fill_value=FILLVALUE_F)
+                    v[:, :, :, :] = data
 
-            elif var in ['LAI', 'fcanopy', 'albedo', 'veg_rough',
-                         'displacement']:
-                mycoords = ('veg_class', 'month') + dims2
-                v = f.createVariable(var, NC_DOUBLE, mycoords,
-                                     fill_value=FILLVALUE_F)
-                v[:, :, :, :] = data
+                elif veg_grid[var].ndim == 4:
+                    mycoords = ('veg_class', 'root_zone', ) + dims2
+                    v = f.createVariable(var, NC_DOUBLE, mycoords,
+                                         fill_value=FILLVALUE_F)
+                    v[:, :, :, :] = data
 
-            elif veg_grid[var].ndim == 4:
-                mycoords = ('veg_class', 'root_zone', ) + dims2
-                v = f.createVariable(var, NC_DOUBLE, mycoords,
-                                     fill_value=FILLVALUE_F)
-                v[:, :, :, :] = data
+                else:
+                    raise ValueError('only able to handle dimensions <=4')
 
-            else:
-                raise ValueError('only able to handle dimensions <=4')
+                v.long_name = var
+                try:
+                    v.units = unit.veg_param[var]
+                    v.description = desc.veg_param[var]
+                except KeyError:
+                    lib_var = 'lib_{0}'.format(var)
+                    v.units = unit.veglib[lib_var]
+                    v.description = desc.veglib[lib_var]
 
-            v.long_name = var
-            try:
-                v.units = unit.veg_param[var]
-                v.description = desc.veg_param[var]
-            except KeyError:
-                lib_var = 'lib_{0}'.format(var)
-                v.units = unit.veglib[lib_var]
-                v.description = desc.veglib[lib_var]
-
-            if coordinates:
-                v.coordinates = coordinates
+                if coordinates:
+                    v.coordinates = coordinates
 
     if lake_grid:
-        try:
+        if 'gridcell' in lake_grid:
             del lake_grid['gridcell']
-        except:
-            pass
 
         f.createDimension('lake_node', lake_grid['basin_depth'].shape[0])
 
@@ -1362,22 +1346,20 @@ def veg_class(vegl_file, c=Cols(veglib_fcan=False)):
 
     data = []
     sep = ' '
-    lib_bare_idx = -1
-    f = open(vegl_file, 'r')
-    row = 0
-    for line in f:
-        words = line.split()
-        if row == 0:
-            col_desc = len(words) - 1
-        else:
-            data.append([])
-            for col in np.arange(0, col_desc):
-                data[row-1][:] = words[:col_desc]
-                data[row-1].append(sep.join(words[col_desc:]))
-            if re.match('(bare|Bare|barren|Barren|unvegetated|Unvegetated)', sep.join(words[col_desc:])):
-                lib_bare_idx = row-1
-        row += 1
-    f.close()
+    lib_bare_idx = None
+    with open(vegl_file, 'r') as f:
+        for row, line in enumerate(f):
+            words = line.split()
+            if row == 0:
+                col_desc = len(words) - 1
+            else:
+                data.append([])
+                for col in np.arange(0, col_desc):
+                    data[row - 1][:] = words[:col_desc]
+                    data[row - 1].append(sep.join(words[col_desc:]))
+                if re.match('(bare|barren|unvegetated)',
+                            sep.join(words[col_desc:]), re.I):
+                    lib_bare_idx = row - 1
 
     veglib_dict = OrderedDict()
     for var in c.veglib:
@@ -1389,10 +1371,10 @@ def veg_class(vegl_file, c=Cols(veglib_fcan=False)):
 
 # -------------------------------------------------------------------- #
 def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
-        cells=False, blowing_snow=False, vegparam_lai=False,
+        cells=None, blowing_snow=False, vegparam_lai=False,
         vegparam_fcan=False, vegparam_albedo=False,
-        lai_src=FROM_VEGLIB, fcan_src=FROM_DEFAULT,
-        alb_src=FROM_VEGLIB):
+        lai_src='FROM_VEGLIB', fcan_src='FROM_DEFAULT',
+        alb_src='FROM_VEGLIB'):
     """
     Read the vegetation file from vegFile.  Assumes max length for rootzones
     and vegclasses.  Also reorders data to match gridcell order of soil file.
@@ -1403,11 +1385,11 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
     with open(veg_file) as f:
         lines = f.readlines()
 
-    if not cells:
+    if cells is None:
         cells = len(lines)
 
-    gridcel = np.zeros(cells).astype(int)
-    nveg = np.zeros(cells).astype(int)
+    gridcel = np.zeros(cells, dtype=np.int)
+    nveg = np.zeros(cells, dtype=np.int)
     cv = np.zeros((cells, veg_classes))
     root_depth = np.zeros((cells, veg_classes, max_roots))
     root_fract = np.zeros((cells, veg_classes, max_roots))
@@ -1418,13 +1400,13 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
     lfactor = 1
     if vegparam_lai:
         lfactor += 1
-        lai = np.zeros((cells, veg_classes, 12))
+        lai = np.zeros((cells, veg_classes, MONTHS_PER_YEAR))
     if vegparam_fcan:
         lfactor += 1
-        fcan = np.zeros((cells, veg_classes, 12))
+        fcan = np.zeros((cells, veg_classes, MONTHS_PER_YEAR))
     if vegparam_albedo:
         lfactor += 1
-        albedo = np.zeros((cells, veg_classes, 12))
+        albedo = np.zeros((cells, veg_classes, MONTHS_PER_YEAR))
 
     row = 0
     cell = 0
@@ -1457,17 +1439,18 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
             if vegparam_lai:
                 lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
-                lai[cell, vind, :] = np.array(line).astype(float)
+                lai[cell, vind, :] = np.array(line, dtype=np.float)
                 row += 1
             if vegparam_fcan:
                 lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
-                fcan[cell, vind, :] = np.array(line).astype(float)
+                fcan[cell, vind, :] = np.array(line, dtype=np.float)
                 row += 1
             if vegparam_albedo:
                 lines[row] = lines[row].strip()
                 line = lines[row].strip('\n').split(' ')
-                albedo[cell, vind, :] = np.array(line).astype(float)
+                print(line)
+                albedo[cell, vind, :] = np.array(line, dtype=np.float)
                 row += 1
         cell += 1
     veg_dict = OrderedDict()
@@ -1482,13 +1465,13 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
         veg_dict['lag_one'] = lag_one[:cell, :]
         veg_dict['fetch'] = fetch[:cell, :]
 
-    if vegparam_lai and lai_src == FROM_VEGPARAM:
+    if vegparam_lai and lai_src == 'FROM_VEGPARAM':
         veg_dict['LAI'] = lai[:cell, :, :]
 
-    if vegparam_fcan and fcan_src == FROM_VEGPARAM:
+    if vegparam_fcan and fcan_src == 'FROM_VEGPARAM':
         veg_dict['fcanopy'] = fcan[:cell, :, :]
 
-    if vegparam_albedo and alb_src == FROM_VEGPARAM:
+    if vegparam_albedo and alb_src == 'FROM_VEGPARAM':
         veg_dict['albedo'] = albedo[:cell, :, :]
 
     # Make gridcell order match that of soil_dict
@@ -1506,7 +1489,7 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
 
 # -------------------------------------------------------------------- #
 def lake(lake_file, soil_dict, max_numnod=10,
-        cells=False, lake_profile=False):
+        cells=None, lake_profile=False):
     """
     Read the lake file from lakeFile.  Assumes max length for depth-area
     relationship.  Also reorders data to match gridcell order of soil file.
@@ -1517,12 +1500,12 @@ def lake(lake_file, soil_dict, max_numnod=10,
     with open(lake_file) as f:
         lines = f.readlines()
 
-    if not cells:
+    if cells is None:
         cells = len(lines)
 
-    gridcel = np.zeros(cells).astype(int)
-    lake_idx = np.zeros(cells).astype(int)
-    numnod = np.zeros(cells).astype(int)
+    gridcel = np.zeros(cells, dtype=np.int)
+    lake_idx = np.zeros(cells, dtype=np.int)
+    numnod = np.zeros(cells, dtype=np.int)
     mindepth = np.zeros(cells)
     wfrac = np.zeros(cells)
     depth_in = np.zeros(cells)
@@ -1538,8 +1521,9 @@ def lake(lake_file, soil_dict, max_numnod=10,
     cell = 0
     while row < len(lines):
         line = lines[row].strip('\n').split(' ')
-        gridcel[cell], lake_idx[cell], numnod[cell] = np.array(line[0:3]).astype(int)
-        temp = np.array(line).astype(float)
+        gridcel[cell], lake_idx[cell], numnod[cell] = np.array(line[0:3],
+                                                               dtype=np.int)
+        temp = np.array(line, dtype=np.float)
         mindepth[cell] = temp[3]
         wfrac[cell] = temp[4]
         depth_in[cell] = temp[5]
@@ -1552,7 +1536,7 @@ def lake(lake_file, soil_dict, max_numnod=10,
         while row < numrows:
             lines[row] = lines[row].strip()
             line = lines[row].strip('\n').split(' ')
-            temp = np.array(line).astype(float)
+            temp = np.array(line, dtype=np.float)
 
             if lake_profile:
                 rind = len(temp) / 2

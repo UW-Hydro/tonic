@@ -65,7 +65,11 @@ def config_type(value):
     Parse the type of the configuration file option.
     First see the value is a bool, then try float, finally return a string.
     """
-    val_list = [x.strip() for x in value.split(',')]
+
+    if not isinstance(value, list):
+        val_list = [x.strip() for x in value.split(',')]
+    else:
+        val_list = value
     if len(val_list) == 1:
         value = val_list[0]
         if value in ['true', 'True', 'TRUE', 'T']:

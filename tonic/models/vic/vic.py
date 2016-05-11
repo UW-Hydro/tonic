@@ -72,10 +72,10 @@ class VIC(object):
         vic_args = []
 
         if mpi_proc is not None:
-            if isinstance(mpi_proc, int):
+            if not isinstance(mpi_proc, int):
                 raise TypeError("number of processors must be specified as an integer")   
  
-            vic_args.extend(['mpirun', '-np', '{0:d}'.format(mpi_proc)])  
+            vic_args.extend(['mpirun', '-np', '%.0d' % mpi_proc])  
 
             vic_args += [self.executable] + [a for a in args]
 

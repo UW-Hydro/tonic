@@ -38,8 +38,32 @@ class VIC(object):
         self._call_vic('-o')
         return self.stdout
 
-    def run(self, global_param, logdir=None, mpi_proc=None):
-        """run VIC"""
+    def run(self, global_param, logdir=None, **kwargs):
+        """
+        Run VIC with specified global parameter file. 
+
+        Parameters 
+        ----------
+        global_param: str
+            Either a path to a VIC global parameter file or a multiline string
+            including VIC global parameter options.
+        logdir : str, optional
+            Path to write log files to. 
+        **kwargs : key=value, optional
+            Keyword arguments to pass to the VIC executable. Valid options are: 
+                mpi_proc : int
+                    Specifies number of processors for MPI (must be integer). Default is 1 processor. 
+
+        Returns
+        --------
+        returncode : int
+            Return error code from VIC. 
+
+        Examples
+        --------
+        retcode = vic.run(global_param_path, logdir=".", mpi_proc=4) 
+
+        """
 
         if os.path.isfile(global_param):
             global_param_file = global_param
@@ -51,7 +75,7 @@ class VIC(object):
             with open(global_param_file, mode='w') as f:
                 f.write(global_param)
 
-        self._call_vic('-g', global_param_file, mpi_proc=None)
+        self._call_vic('-g', global_param_file, **kwargs)
 
         if logdir:
             now = datetime.now()
@@ -67,17 +91,17 @@ class VIC(object):
 
         return self.returncode
 
-    def _call_vic(self, mpi_proc=None, *args):
+    def _call_vic(self, *args, **kwargs):
 
         vic_args = []
 
-        if mpi_proc is not None:
-            if not isinstance(mpi_proc, int):
+        if "mpi_proc" in kwargs.keys():
+            if not isinstance(kwargs["mpi_proc"], int):
                 raise TypeError("number of processors must be specified as an integer")   
  
-            vic_args.extend(['mpirun', '-np', '%.0d' % mpi_proc])  
+            vic_args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])  
 
-            vic_args += [self.executable] + [a for a in args]
+        vic_args += [self.executable] + [a for a in args]
 
         proc = subprocess.Popen(' '.join(vic_args),
                                 shell=True,

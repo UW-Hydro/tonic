@@ -10,6 +10,8 @@ import subprocess
 from datetime import datetime
 import pandas as pd
 
+default_vic_valgrind_error_code = 125
+
 
 # -------------------------------------------------------------------- #
 class VICRuntimeError(RuntimeError):
@@ -40,28 +42,32 @@ class VIC(object):
 
     def run(self, global_param, logdir=None, **kwargs):
         """
-        Run VIC with specified global parameter file. 
+        Run VIC with specified global parameter file.
 
-        Parameters 
+        Parameters
         ----------
         global_param: str
             Either a path to a VIC global parameter file or a multiline string
             including VIC global parameter options.
         logdir : str, optional
-            Path to write log files to. 
+            Path to write log files to.
         **kwargs : key=value, optional
-            Keyword arguments to pass to the VIC executable. Valid options are: 
+            Keyword arguments to pass to the VIC executable. Valid options are:
                 mpi_proc : int
-                    Specifies number of processors for MPI (must be integer). Default is 1 processor. 
+                    Specifies number of processors for MPI (must be integer).
+                    Default is 1 processor.
+                valgrind : str or bool
+                    Specifies path to valgrind executable. If bool and True,
+                    valgrind will be used without specifying the full path.
 
         Returns
         --------
         returncode : int
-            Return error code from VIC. 
+            Return error code from VIC.
 
         Examples
         --------
-        retcode = vic.run(global_param_path, logdir=".", mpi_proc=4) 
+        retcode = vic.run(global_param_path, logdir=".", mpi_proc=4)
 
         """
 
@@ -95,11 +101,28 @@ class VIC(object):
 
         vic_args = []
 
-        if "mpi_proc" in kwargs.keys():
-            if not isinstance(kwargs["mpi_proc"], int):
-                raise TypeError("number of processors must be specified as an integer")   
- 
-            vic_args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])  
+        # Get mpi info
+        mpi_proc = kwargs.pop('mpi_proc', None)
+        if mpi_proc is not None:
+            if not isinstance(mpi_proc, int):
+                raise TypeError("number of processors must be specified as an"
+                                "integer")
+            vic_args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])
+
+        # Get valgrind info
+        valgrind = kwargs.pop('valgrind', None)
+        if valgrind:
+            if valgrind is True:
+                valgrind = 'valgrind'
+            errorcode = os.getenv('VIC_VALGRIND_ERROR',
+                                  default_vic_valgrind_error_code)
+            vic_args.extend([valgrind, '-v', '--leak-check=full',
+                             '--error-exitcode={0}'.format(errorcode)])
+
+        # if there are kwargs left, we don't know what to do with them so
+        # raise an error
+        if kwargs:
+            raise ValueError('Unknown argument(s): %s' % ', '.join(kwargs.keys()))
 
         vic_args += [self.executable] + [a for a in args]
 
@@ -112,9 +135,6 @@ class VIC(object):
         self.stdout = retvals[0]
         self.stderr = retvals[1]
         self.returncode = proc.returncode
-
-        # if self.returncode != 0:
-        #     raise VICRuntimeError(self.stderr)
 # -------------------------------------------------------------------- #
 
 

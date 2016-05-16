@@ -27,6 +27,8 @@ class VIC(object):
             self.executable = executable
             self.version = self._get_version()
             self.options = self._get_options()
+            self.args = []
+            self.argstring = ''
         else:
             raise VICRuntimeError('%s is not a valid executable' % executable)
 
@@ -99,7 +101,7 @@ class VIC(object):
 
     def _call_vic(self, *args, **kwargs):
 
-        vic_args = []
+        self.args = []
 
         # Get mpi info
         mpi_proc = kwargs.pop('mpi_proc', None)
@@ -107,7 +109,7 @@ class VIC(object):
             if not isinstance(mpi_proc, int):
                 raise TypeError("number of processors must be specified as an"
                                 "integer")
-            vic_args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])
+            self.args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])
 
         # Get valgrind info
         valgrind = kwargs.pop('valgrind', None)
@@ -116,7 +118,7 @@ class VIC(object):
                 valgrind = 'valgrind'
             errorcode = os.getenv('VIC_VALGRIND_ERROR',
                                   default_vic_valgrind_error_code)
-            vic_args.extend([valgrind, '-v', '--leak-check=full',
+            self.args.extend([valgrind, '-v', '--leak-check=full',
                              '--error-exitcode={0}'.format(errorcode)])
 
         # if there are kwargs left, we don't know what to do with them so
@@ -124,9 +126,13 @@ class VIC(object):
         if kwargs:
             raise ValueError('Unknown argument(s): %s' % ', '.join(kwargs.keys()))
 
-        vic_args += [self.executable] + [a for a in args]
+        self.args += [self.executable] + [a for a in args]
 
-        proc = subprocess.Popen(' '.join(vic_args),
+        # set the args attribute
+
+        self.argstring = ' '.join(self.args)
+
+        proc = subprocess.Popen(self.argstring,
                                 shell=True,
                                 stderr=subprocess.PIPE,
                                 stdout=subprocess.PIPE)

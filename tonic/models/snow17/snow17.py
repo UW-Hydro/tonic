@@ -124,8 +124,8 @@ def snow17(time, prec, tair, lat=50, elevation=0, dt=24, scf=1.0, rvs=1,
     stefan = 6.12 * (10 ** (-10))
     # atmospheric pressure (mb) where elevation is in HUNDREDS of meters
     # (this is incorrectly stated in the manual)
-    p_atm = 33.86 * (29.9 - (0.335 * elevation / 100)
-                     + (0.00022 * ((elevation / 100) ** 2.4)))
+    p_atm = 33.86 * (29.9 - (0.335 * elevation / 100) +
+                     (0.00022 * ((elevation / 100) ** 2.4)))
 
     transitionx = [pxtemp1, pxtemp2]
     transitiony = [1.0, 0.0]
@@ -199,17 +199,18 @@ def snow17(time, prec, tair, lat=50, elevation=0, dt=24, scf=1.0, rvs=1,
 
         # Rain-on-snow melt
         # saturated vapor pressure at t_air_mean (mb)
-        e_sat = 2.7489 * (10 ** 8) * np.exp((-4278.63
-                                            / (t_air_mean + 242.792)))
+        e_sat = 2.7489 * (10 ** 8) * np.exp(
+            (-4278.63 / (t_air_mean + 242.792)))
         # 1.5 mm/ 6 hrs
         if rain > (0.25 * dt):
             # melt (mm) during rain-on-snow periods is:
-            m_ros1 = np.maximum(stefan * dt * (((t_air_mean + 273) ** 4)
-                                               - (273 ** 4)), 0.0)
+            m_ros1 = np.maximum(
+                stefan * dt * (((t_air_mean + 273) ** 4) - (273 ** 4)), 0.0)
             m_ros2 = np.maximum((0.0125 * rain * t_rain), 0.0)
-            m_ros3 = np.maximum((8.5 * uadj * (dt / 6.0)
-                                * (((0.9 * e_sat) - 6.11)
-                                   + (0.00057 * p_atm * t_air_mean))),
+            m_ros3 = np.maximum((8.5 * uadj *
+                                (dt / 6.0) *
+                                (((0.9 * e_sat) - 6.11) +
+                                 (0.00057 * p_atm * t_air_mean))),
                                 0.0)
             m_ros = m_ros1 + m_ros2 + m_ros3
         else:
@@ -258,8 +259,8 @@ def snow17(time, prec, tair, lat=50, elevation=0, dt=24, scf=1.0, rvs=1,
                 # decreased
                 w_i = w_i + deficit
                 deficit = 0.0
-            elif (qw >= deficit) and ((qw + w_q) <= ((deficit * (1 + plwhc))
-                                      + w_qx)):
+            elif ((qw >= deficit) and
+                  ait((qw + w_q) <= ((deficit * (1 + plwhc)) + w_qx))):
                 # THEN the snow is NOT yet ripe, but ice is being melted
                 e = 0.0
                 w_q = w_q + qw - deficit

@@ -109,7 +109,7 @@ class VIC(object):
             if not isinstance(mpi_proc, int):
                 raise TypeError("number of processors must be specified as an"
                                 "integer")
-            self.args.extend(['mpirun', '-np', '%.0d' % kwargs["mpi_proc"]])
+            self.args.extend(['mpirun', '-np', '%.0d' % mpi_proc])
 
         # Get valgrind info
         valgrind = kwargs.pop('valgrind', None)

@@ -145,14 +145,12 @@ class Cols(object):
             self.soil_param['July_Tavg'] = np.array([i])
             i += 1
 
-
         # Snow Parameters
         self.snow_param = OrderedDict([('cellnum', np.array([0]))])
         i = 1
         for var in ['AreaFract', 'elevation', 'Pfactor']:
             self.snow_param[var] = np.arange(i, i + snow_bands)
             i += snow_bands
-
 
         # Veg Library
         self.veglib = OrderedDict([('Veg_class', np.array([0])),
@@ -683,8 +681,8 @@ def make_grid(grid_file, soil_file, snow_file, vegl_file, veg_file,
     if vegl_file:
         veglib_dict, lib_bare_idx = veg_class(vegl_file,
                                               veglib_photo=veglib_photo,
-                                    c=Cols(veglib_fcan=veglib_fcan,
-                                           veglib_photo=veglib_photo))
+                                              c=Cols(veglib_fcan=veglib_fcan,
+                                                     veglib_photo=veglib_photo))
         veg_classes = len(veglib_dict['Veg_class'])
     else:
         veglib_dict = False
@@ -839,7 +837,7 @@ def latlon2yx(plats, plons, glats, glons):
 
 # -------------------------------------------------------------------- #
 def grid_params(soil_dict, target_grid, snow_dict, veglib_dict, veg_dict,
-                lake_dict, version_in='4.2', veglib_fcan=False,
+                lake_dict=None, version_in='4.2', veglib_fcan=False,
                 veglib_photo=False, lib_bare_idx=None, blowing_snow=False,
                 vegparam_lai=False, vegparam_fcan=False,
                 vegparam_albedo=False, lai_src='FROM_VEGLIB',
@@ -1373,6 +1371,12 @@ def soil(in_file, c=Cols(nlayers=3, organic_fract=False,
         else:
             soil_dict[var] = np.squeeze(data[:, columns])
 
+    unique_grid_cells, inds = np.unique(soil_dict['gridcell'], return_index=True)
+    if len(unique_grid_cells) != len(soil_dict['gridcell']):
+        warn('found duplicate grid cells in soil file')
+        for key, val in soil_dict.items():
+            soil_dict[key] = val[inds]
+
     return soil_dict
 # -------------------------------------------------------------------- #
 
@@ -1393,9 +1397,15 @@ def snow(snow_file, soil_dict, c=Cols(snow_bands=5)):
         snow_dict[var] = data[:, c.snow_param[var]]
 
     # Make gridcell order match that of soil_dict
-    target = soil_dict['gridcell'].argsort()
-    indexes = target[np.searchsorted(soil_dict['gridcell'][target],
-                                     snow_dict['cellnum'])]
+    cell_nums = snow_dict['cellnum'].astype(np.int)
+    indexes = np.zeros_like(soil_dict['gridcell'], dtype=np.int)
+    for i, sn in enumerate(soil_dict['gridcell'].astype(np.int)):
+        try:
+            indexes[i] = np.nonzero(cell_nums == sn)[0]
+            last = indexes[i]
+        except IndexError:
+            warn('grid cell %d not found, using last known snowband' % sn)
+            indexes[i] = last
 
     for var in snow_dict:
         snow_dict[var] = np.squeeze(snow_dict[var][indexes])
@@ -1416,11 +1426,14 @@ def veg_class(vegl_file, veglib_photo=False,
     data = []
     sep = ' '
     lib_bare_idx = None
+    row = 0
     with open(vegl_file, 'r') as f:
-        for row, line in enumerate(f):
+        for line in f:
             words = line.split()
             if row == 0:
                 col_desc = len(words) - 1
+            elif line.startswith('#'):
+                continue  # skip additional lines with comments
             else:
                 data.append([])
                 for col in np.arange(0, col_desc):
@@ -1434,11 +1447,12 @@ def veg_class(vegl_file, veglib_photo=False,
                 if re.match('(bare|barren|unvegetated)',
                             sep.join(words[col_desc:]), re.I):
                     lib_bare_idx = row - 1
+            row += 1
 
     veglib_dict = OrderedDict()
+    data = np.array(data)
     for var in c.veglib:
-        veglib_dict[var] = np.squeeze(np.asarray(data)[:, c.veglib[var]])
-
+        veglib_dict[var] = np.squeeze(data[..., c.veglib[var]])
     return veglib_dict, lib_bare_idx
 # -------------------------------------------------------------------- #
 
@@ -1562,7 +1576,7 @@ def veg(veg_file, soil_dict, veg_classes=11, max_roots=3,
 
 # -------------------------------------------------------------------- #
 def lake(lake_file, soil_dict, max_numnod=10,
-        cells=None, lake_profile=False):
+         cells=None, lake_profile=False):
     """
     Read the lake file from lakeFile.  Assumes max length for depth-area
     relationship.  Also reorders data to match gridcell order of soil file.

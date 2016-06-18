@@ -1146,8 +1146,8 @@ def write_netcdf(myfile, target_attrs, target_grid,
             v[:, :, :] = target_grid['yv']
 
     # mask
-    v = f.createVariable('mask', NC_DOUBLE, dims2)
-    v[:, :] = target_grid['mask']
+    v = f.createVariable('mask', NC_INT, dims2)
+    v[:, :] = target_grid['mask'].astype(np.int)
     v.long_name = 'land mask'
     if coordinates:
         v.coordinates = coordinates

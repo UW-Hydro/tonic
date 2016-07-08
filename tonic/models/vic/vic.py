@@ -122,8 +122,8 @@ class VIC(object):
             self.args.extend([valgrind, '-v', '--leak-check=full',
                              '--error-exitcode={0}'.format(errorcode)])
 
-            suppressions = os.getenv('VIC_VALGRIND_SUPRESSIONS',
-                                    default_vic_valgrind_suppressions_path)
+            suppressions = os.getenv('VIC_VALGRIND_SUPPRESSIONS',
+                                     default_vic_valgrind_suppressions_path)
             if os.path.isfile(suppressions):
                 self.args.extend(['--suppressions={0}'.format(suppressions)])
 

@@ -11,6 +11,7 @@ from datetime import datetime
 import pandas as pd
 
 default_vic_valgrind_error_code = 125
+default_vic_valgrind_supressions_path = 'vic_valgrind_supressions.supp'
 
 
 # -------------------------------------------------------------------- #
@@ -120,6 +121,11 @@ class VIC(object):
                                   default_vic_valgrind_error_code)
             self.args.extend([valgrind, '-v', '--leak-check=full',
                              '--error-exitcode={0}'.format(errorcode)])
+
+            supressions = os.getenv('VIC_VALGRIND_SUPRESSIONS',
+                                    default_vic_valgrind_supressions_path)
+            if os.path.isfile(supressions):
+                self.args.extend(['--suppressions={0}'.format(supressions)])
 
         # if there are kwargs left, we don't know what to do with them so
         # raise an error
